@@ -18,11 +18,16 @@ export default async function DashboardRedirect() {
     .single()
 
   if (dbError || !userData) {
-    // fallback if no role found
-    redirect('/dashboard/student')
+    console.error('DB 권한 조회 실패 (page):', dbError || 'No userData returned')
   }
 
-  const role = userData.role
-  // role is one of 'admin', 'director', 'teacher', 'student'
-  redirect(`/dashboard/${role}`)
+  // Normalize role to lowercase to match folder names: /dashboard/admin, etc.
+  // Fallback to 'student' if DB query fails (e.g., no profile row yet)
+  const role = ((userData?.role as string) || 'student').toLowerCase()
+
+  // Only redirect if the role maps to a valid sub-page
+  const validRoles = ['admin', 'director', 'teacher', 'student']
+  const targetRole = validRoles.includes(role) ? role : 'student'
+  
+  redirect(`/dashboard/${targetRole}`)
 }

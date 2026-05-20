@@ -44,17 +44,27 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // Public routes that don't require authentication
   const isPublicRoute = pathname === '/login' || pathname === '/'
+
+  // Protected route: redirect unauthenticated users to /login
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && (pathname === '/login' || pathname === '/')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // Already logged-in user visiting /login or /: redirect to dashboard
+  // BUT only if there's no ?redirected param (prevents infinite loop if
+  // dashboard itself sends user back to /login due to missing profile)
+  if (user && isPublicRoute) {
+    const hasRedirectedFlag = request.nextUrl.searchParams.has('signout')
+    if (!hasRedirectedFlag) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      url.search = '' // clear query params
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

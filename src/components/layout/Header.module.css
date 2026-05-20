@@ -1,0 +1,53 @@
+.header {
+  height: 80px;
+  background-color: var(--header-bg);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 40px;
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.roleBadge {
+  background-color: var(--accent-light);
+  color: var(--primary-dark);
+  padding: 6px 16px;
+  border-radius: var(--radius-lg);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.email {
+  font-weight: 500;
+  color: var(--text-dark);
+  font-size: 0.95rem;
+}
+
+.logoutBtn {
+  background: transparent;
+  border: 1px solid var(--text-light);
+  color: var(--text-dark);
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.logoutBtn:hover {
+  background-color: var(--text-dark);
+  border-color: var(--text-dark);
+  color: white;
+}

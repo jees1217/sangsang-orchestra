@@ -12,8 +12,18 @@ export default async function StudentDashboard() {
     .eq('id', user.id)
     .single()
 
-  if (userData?.role !== 'student') {
-    redirect('/dashboard') // redirect back to the hub to be routed correctly
+  const role = ((userData?.role as string) || 'student').toLowerCase()
+
+  if (role !== 'student') {
+    return (
+      <div style={{ padding: '40px', fontFamily: 'sans-serif', textAlign: 'center' }}>
+        <h1 style={{ fontSize: '28px', color: '#e74c3c', marginBottom: '16px' }}>⚠️ 접근 권한 없음</h1>
+        <p style={{ color: '#666' }}>학생(Student) 전용 페이지입니다.</p>
+        <a href="/dashboard" style={{ color: '#00A99D', marginTop: '16px', display: 'inline-block' }}>
+          대시보드로 돌아가기
+        </a>
+      </div>
+    )
   }
 
   return (

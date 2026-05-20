@@ -1,0 +1,97 @@
+.sidebar {
+  width: 260px;
+  background-color: var(--sidebar-bg);
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 0;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  padding: 32px 20px;
+  z-index: 100;
+}
+
+.logoContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 48px;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
+.logoCircle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: var(--primary-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color);
+  font-size: 1.5rem;
+}
+
+.logoText {
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--primary-color);
+  line-height: 1.2;
+}
+
+.logoText span {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.menuList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  color: var(--text-dark);
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  transform: translateX(4px);
+}
+
+.menuItemActive {
+  background-color: var(--primary-color);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.menuItemActive:hover {
+  background-color: var(--primary-dark);
+  color: white;
+  transform: none;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 24px;
+  border-top: 1px solid var(--primary-light);
+  font-size: 0.8rem;
+  color: var(--text-light);
+  text-align: center;
+}

@@ -1,12 +1,32 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary-color: #00A99D; /* Teal - Main brand color */
+  --primary-light: #E0F2F1;
+  --primary-dark: #00897B;
+  --accent-color: #F7CA18; /* Yellow - Warm orchestra accent */
+  --accent-light: #FFF9C4;
+  --text-dark: #2C3E50; /* Navy - Primary text */
+  --text-light: #7F8C8D;
+  --bg-color: #F4FBFC; /* Light mint/ivory background */
+  --sidebar-bg: #FFFFFF;
+  --header-bg: #FFFFFF;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
 }
 
 @media (prefers-color-scheme: dark) {
+  /* For now we keep the warm bright tone, but we can define dark mode variables if needed */
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --text-dark: #E2E8F0;
+    --text-light: #94A3B8;
+    --bg-color: #0F172A;
+    --sidebar-bg: #1E293B;
+    --header-bg: #1E293B;
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -24,9 +44,9 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-dark);
+  background: var(--bg-color);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -40,10 +60,4 @@ body {
 a {
   color: inherit;
   text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
 }

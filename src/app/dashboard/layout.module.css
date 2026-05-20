@@ -1,0 +1,17 @@
+.container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  margin-left: 260px; /* Same as Sidebar width */
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  padding: 40px;
+  flex: 1;
+  background-color: var(--bg-color);
+}
