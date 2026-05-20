@@ -1,0 +1,117 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  /* 로고와 어울리는 따뜻한 분위기의 배경 (아이보리/베이지톤) */
+  background: linear-gradient(135deg, #fdfbf7 0%, #f4e8d1 100%);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.loginBox {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  padding: 40px;
+  border-radius: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.logoImage {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  margin: 0 auto 12px;
+  display: block;
+}
+
+.title {
+  /* 로고 이미지가 있으므로 텍스트 타이틀은 숨김 처리하거나 작게 유지 */
+  display: none;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #253243; /* 로고의 네이비 컬러 */
+  margin-bottom: 30px;
+  font-weight: 500;
+}
+
+.formGroup {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.label {
+  display: block;
+  font-size: 14px;
+  color: #253243; /* 로고의 네이비 컬러 */
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e1e1e1;
+  border-radius: 12px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  outline: none;
+  background: #fdfdfd;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  border-color: #10B5A7; /* 메인 청록색(Teal) 포인트 컬러 */
+  box-shadow: 0 0 0 4px rgba(16, 181, 167, 0.15);
+}
+
+.button {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: #10B5A7; /* 메인 청록색(Teal) */
+  color: white;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  margin-top: 10px;
+}
+
+.button:hover {
+  background: #0ea396;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(16, 181, 167, 0.3);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+.error {
+  color: #e74c3c;
+  font-size: 14px;
+  margin-bottom: 15px;
+  background: #fdeaea;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #fad2d2;
+  word-break: keep-all;
+}
