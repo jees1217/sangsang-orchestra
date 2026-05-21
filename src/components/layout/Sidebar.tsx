@@ -14,22 +14,31 @@ const MENUS = {
   student: [
     { label: '내 과제', path: '/dashboard/student/assignments', icon: '📝' },
     { label: '악보 보기', path: '/dashboard/student/scores', icon: '🎵' },
-    { label: '온라인 수업', path: '/dashboard/student/class', icon: '💻' },
+    // [변경됨] 학생용 일정표 메뉴로 업데이트
+    { label: '내 일정표', path: '/dashboard/student/schedules', icon: '📅' },
   ],
   teacher: [
     { label: '내 학생 관리', path: '/dashboard/teacher/students', icon: '👥' },
-    { label: '과제/공지 관리', path: '/dashboard/teacher/assignments', icon: '📋' },
-    { label: '출결/평가 관리', path: '/dashboard/teacher/evaluations', icon: '✔️' },
+    { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📋' },
+    { label: '출결/평가 관리', path: '/dashboard/evaluations', icon: '✔️' },
+    { label: '출강 스케줄 설정', path: '/dashboard/teacher/availabilities', icon: '🗓️' },
+    { label: '온라인 수업 관리', path: '/dashboard/classes', icon: '🔗' },
   ],
   director: [
+    { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },
     { label: '전체 모니터링', path: '/dashboard/director/monitoring', icon: '📊' },
-    { label: '출결/평가 현황', path: '/dashboard/director/status', icon: '📈' },
-    { label: '공지 관리', path: '/dashboard/director/notices', icon: '📢' },
+    { label: '출결/평가 현황', path: '/dashboard/evaluations', icon: '📈' },
+    { label: '공지 관리', path: '/dashboard/notices', icon: '📢' },
+    { label: '악보 관리', path: '/dashboard/scores', icon: '🎵' },
+    { label: '통합 일정 관리', path: '/dashboard/schedules', icon: '📅' },
   ],
   admin: [
-    { label: '단원 관리', path: '/dashboard/admin/members', icon: '🧑‍🤝‍🧑' },
+    { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },
     { label: '전체 통계', path: '/dashboard/admin/stats', icon: '📊' },
-    { label: '온라인 수업 관리', path: '/dashboard/admin/class-links', icon: '🔗' },
+    { label: '강의 평가 내역', path: '/dashboard/evaluations', icon: '📝' },
+    { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📢' },
+    { label: '악보 관리', path: '/dashboard/scores', icon: '🎵' },
+    { label: '통합 일정 관리', path: '/dashboard/schedules', icon: '📅' },
   ]
 }
 

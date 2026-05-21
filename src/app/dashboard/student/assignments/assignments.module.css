@@ -1,0 +1,26 @@
+.container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+.title { font-size: 26px; font-weight: bold; color: #1a202c; margin-bottom: 24px; }
+.grid { display: flex; flex-direction: column; gap: 20px; }
+
+/* 과제 카드 디자인 */
+.card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); }
+.cardHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+
+/* 상태 뱃지 (미확인 / 확인완료) */
+.statusBadge { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: bold; }
+.statusSubmitted { background-color: #e6fffa; color: #319795; }
+.statusPending { background-color: #fffaf0; color: #dd6b20; }
+.dueDate { font-size: 13px; color: #e53e3e; font-weight: 600; }
+
+/* 과제 제목 및 내용 */
+.assignmentTitle { font-size: 18px; font-weight: bold; color: #2d3748; margin: 0 0 8px 0; }
+.assignmentContent { font-size: 14px; color: #4a5568; line-height: 1.6; white-space: pre-wrap; margin-bottom: 20px; background: #f7fafc; padding: 16px; border-radius: 8px; }
+
+/* 확인 완료 버튼 */
+.submitBtn { background-color: #00A99D; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+.submitBtn:hover { background-color: #008f84; }
+.submitBtn:disabled { background-color: #cbd5e0; cursor: not-allowed; }
+
+/* 안내 및 로딩 화면 */
+.empty { text-align: center; color: #a0aec0; padding: 60px 0; font-size: 16px; }
+.loading { text-align: center; padding: 50px; color: #666; font-size: 18px; }

@@ -1,0 +1,46 @@
+.container { max-width: 900px; margin: 0 auto; padding: 20px; }
+.title { font-size: 26px; font-weight: bold; color: #1b365d; margin-bottom: 8px; }
+.subtitle { font-size: 14px; color: #718096; margin-bottom: 24px; line-height: 1.5; }
+
+.grid { display: flex; flex-direction: column; gap: 16px; }
+
+/* 일정 카드 디자인 (타임라인 형태) */
+.card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: flex; align-items: center; transition: transform 0.2s; }
+.card:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transform: translateY(-2px); }
+
+/* 날짜 박스 (왼쪽) */
+.dateBox { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #edf2f7; min-width: 90px; height: 90px; }
+.month { font-size: 13px; font-weight: bold; color: #64748b; margin-bottom: 4px; }
+.day { font-size: 28px; font-weight: 900; color: #1b365d; line-height: 1; }
+.dayOfWeek { font-size: 12px; font-weight: 600; color: #94a3b8; margin-top: 6px; }
+
+/* 상세 정보 (오른쪽) */
+.infoBox { flex: 1; margin-left: 20px; }
+.titleRow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.scTitle { font-size: 18px; font-weight: bold; color: #1a202c; }
+
+.metaRow { font-size: 14px; color: #475569; display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.metaItem { display: flex; align-items: center; gap: 6px; }
+
+.location { background: #f1f5f9; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #334155; display: inline-block; word-break: break-all; }
+.link { color: #00A99D; font-weight: bold; text-decoration: none; }
+.link:hover { text-decoration: underline; }
+
+/* 뱃지 */
+.badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; }
+.bgMint { background: #e6f7f6; color: #00A99D; }
+.bgBlue { background: #ebf8ff; color: #3182ce; }
+.bgOrange { background: #fffaf0; color: #dd6b20; }
+.bgPurple { background: #faf5ff; color: #805ad5; }
+.bgGray { background: #f1f5f9; color: #475569; }
+
+.empty { text-align: center; padding: 80px 0; color: #a0aec0; font-size: 15px; }
+.loading { text-align: center; padding: 50px; color: #666; font-size: 18px; }
+
+@media (max-width: 600px) {
+  .card { flex-direction: column; align-items: flex-start; }
+  .dateBox { width: 100%; height: auto; flex-direction: row; gap: 12px; padding: 10px; margin-bottom: 16px; }
+  .month { margin-bottom: 0; }
+  .dayOfWeek { margin-top: 0; }
+  .infoBox { margin-left: 0; width: 100%; }
+}

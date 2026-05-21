@@ -1,0 +1,48 @@
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.title { font-size: 26px; font-weight: bold; color: #1b365d; margin-bottom: 24px; }
+.layout { display: flex; gap: 24px; align-items: flex-start; }
+@media (max-width: 960px) { .layout { flex-direction: column; } }
+
+.leftPanel { width: 35%; display: flex; flex-direction: column; gap: 24px; }
+.rightPanel { width: 65%; display: flex; flex-direction: column; gap: 24px; }
+
+/* 카드 공통 */
+.card { background: white; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.cardTitle { font-size: 18px; font-weight: bold; color: #2d3748; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; }
+
+/* 폼 요소 */
+.formGroup { margin-bottom: 16px; }
+.label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 6px; }
+.input, .select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
+.input:focus, .select:focus { border-color: #00A99D; }
+.row { display: flex; gap: 12px; }
+.row > div { flex: 1; }
+
+.submitBtn { width: 100%; padding: 12px; background-color: #00A99D; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 8px; }
+.submitBtn:hover { background-color: #008f84; }
+
+/* 선생님 가용시간 참조 박스 */
+.availBox { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-size: 13px; }
+.availItem { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; }
+.availItem:last-child { border-bottom: none; }
+
+/* 일정 리스트 */
+.scheduleCard { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; transition: transform 0.2s; }
+.scheduleCard:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.scHeader { display: flex; justify-content: space-between; align-items: center; }
+.scTitle { font-size: 16px; font-weight: bold; color: #1a202c; }
+.scMeta { font-size: 13px; color: #718096; display: flex; gap: 12px; flex-wrap: wrap; }
+.scLocation { background: #f1f5f9; padding: 6px 10px; border-radius: 6px; font-size: 13px; color: #475569; word-break: break-all; }
+
+/* 뱃지 */
+.badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; }
+.bgMint { background: #e6f7f6; color: #00A99D; }
+.bgBlue { background: #ebf8ff; color: #3182ce; }
+.bgOrange { background: #fffaf0; color: #dd6b20; }
+.bgPurple { background: #faf5ff; color: #805ad5; }
+.bgGray { background: #f1f5f9; color: #475569; }
+.targetBadge { background: #edf2f7; color: #2d3748; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+
+.deleteBtn { background: none; border: none; color: #ef4444; font-size: 13px; cursor: pointer; padding: 4px; }
+.deleteBtn:hover { text-decoration: underline; }
+.empty { text-align: center; color: #a0aec0; padding: 40px 0; font-size: 14px; }

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import styles from './Header.module.css'
 
 interface HeaderProps {
@@ -38,6 +39,9 @@ export default function Header({ email, role = 'student' }: HeaderProps) {
             {email}
           </div>
         )}
+        <Link href="/dashboard/profile" className={styles.profileBtn}>
+          내 프로필
+        </Link>
         <button onClick={handleLogout} className={styles.logoutBtn}>
           로그아웃
         </button>

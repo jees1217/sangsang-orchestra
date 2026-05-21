@@ -19,8 +19,8 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      // Add dummy domain for Supabase auth
-      const email = `${id}@sangsang.local`
+      // 이메일 형식이면 그대로 사용하고, 아니면 더미 도메인을 붙임
+      const email = id.includes('@') ? id : `${id}@sangsang.local`
       
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
@@ -65,7 +65,7 @@ export default function LoginPage() {
               value={id}
               onChange={(e) => setId(e.target.value)}
               className={styles.input}
-              placeholder="아이디를 입력하세요"
+              placeholder="아이디(또는 이메일)를 입력하세요"
               required
             />
           </div>
@@ -87,6 +87,18 @@ export default function LoginPage() {
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
+
+        {/* [수정됨] 비밀번호 찾기 팝업 안내 버튼 */}
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <button 
+            type="button" 
+            onClick={() => alert('비밀번호를 잊으셨나요?\n소속 단체 관리자에게 문의하여 비밀번호를 초기화해 주세요.')}
+            style={{ background: 'none', border: 'none', color: '#0070f3', fontSize: '14px', cursor: 'pointer', fontWeight: '500', textDecoration: 'underline', padding: 0 }}
+          >
+            비밀번호를 잊으셨나요?
+          </button>
+        </div>
+
       </div>
     </div>
   )

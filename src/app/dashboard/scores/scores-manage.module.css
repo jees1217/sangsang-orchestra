@@ -1,0 +1,23 @@
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.title { font-size: 26px; font-weight: bold; color: #1a202c; margin-bottom: 24px; }
+.layout { display: flex; gap: 24px; align-items: flex-start; }
+@media (max-width: 768px) { .layout { flex-direction: column; } }
+
+.formSection { width: 35%; background: white; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; }
+.listSection { width: 65%; background: white; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; }
+.sectionTitle { font-size: 18px; font-weight: bold; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; color: #2d3748; }
+
+.formGroup { margin-bottom: 16px; }
+.label { display: block; font-weight: 600; margin-bottom: 8px; color: #4a5568; font-size: 14px; }
+.input, .select { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; outline: none; }
+
+.submitBtn { width: 100%; padding: 12px; background-color: #00A99D; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.submitBtn:hover { background-color: #008f84; }
+
+.scoreRow { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #edf2f7; }
+.scoreRow:last-child { border-bottom: none; }
+.scoreInfo { display: flex; flex-direction: column; gap: 4px; }
+.scoreTitle { font-weight: bold; color: #2d3748; }
+.meta { font-size: 12px; color: #718096; display: flex; gap: 8px; }
+.deleteBtn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; font-size: 13px; }
+.deleteBtn:hover { text-decoration: underline; }

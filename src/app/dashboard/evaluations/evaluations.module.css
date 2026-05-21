@@ -1,0 +1,39 @@
+.container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.title { font-size: 26px; font-weight: bold; color: #1a202c; margin: 0; }
+.csvBtn { background-color: #38a169; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+.csvBtn:hover { background-color: #2f855a; }
+
+.layout { display: flex; gap: 24px; align-items: flex-start; }
+@media (max-width: 768px) { .layout { flex-direction: column; } }
+
+/* 왼쪽: 학생 목록 (사이드바 형태) */
+.studentList { width: 30%; background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+.listHeader { background: #f7fafc; padding: 16px; font-weight: bold; border-bottom: 1px solid #e2e8f0; }
+.studentItem { padding: 16px; border-bottom: 1px solid #edf2f7; cursor: pointer; transition: background 0.2s; }
+.studentItem:hover { background: #ebf8ff; }
+.studentItemActive { background: #bee3f8; border-left: 4px solid #3182ce; padding-left: 12px; }
+.studentName { font-weight: bold; font-size: 16px; color: #2d3748; }
+.className { font-size: 12px; color: #718096; margin-top: 4px; }
+
+/* 오른쪽: 평가 작성 및 내역 */
+.mainContent { width: 70%; display: flex; flex-direction: column; gap: 24px; }
+.card { background: white; border-radius: 12px; padding: 24px; border: 1px solid #e2e8f0; }
+.cardTitle { font-size: 18px; font-weight: bold; margin-bottom: 16px; color: #2d3748; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; }
+
+/* 폼 스타일 */
+.formGroup { margin-bottom: 16px; }
+.label { display: block; font-weight: 600; margin-bottom: 8px; color: #4a5568; }
+.select { width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 16px; }
+.textarea { width: 100%; padding: 12px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 14px; min-height: 100px; resize: vertical; }
+.submitBtn { background-color: #3182ce; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; }
+.submitBtn:hover { background-color: #2b6cb0; }
+
+/* 평가 내역 리스트 */
+.historyItem { background: #f7fafc; border-radius: 8px; padding: 16px; margin-bottom: 12px; border: 1px solid #edf2f7; }
+.historyHeader { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+.historyScore { font-weight: bold; color: #d69e2e; }
+.historyDate { color: #a0aec0; }
+.historyWriter { font-size: 12px; color: #718096; display: block; margin-top: 4px; }
+.empty { text-align: center; color: #a0aec0; padding: 40px 0; }
+.loading { text-align: center; padding: 50px; color: #666; font-size: 18px; }
