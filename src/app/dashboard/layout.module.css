@@ -1,34 +1,37 @@
+/* ===== 대시보드 레이아웃 ===== */
+
 .container {
   display: flex;
   min-height: 100vh;
+  background: var(--bg-color, #F0F8F7);
 }
 
 .main {
   flex: 1;
-  margin-left: 260px; /* PC에서는 사이드바 너비만큼 본문을 오른쪽으로 밀어줌 */
+  margin-left: 270px;
   display: flex;
   flex-direction: column;
-  transition: margin-left 0.3s ease; /* 부드러운 전환 효과 */
+  transition: margin-left 0.3s ease;
 }
 
 .content {
-  padding: 40px;
+  padding: 32px;
   flex: 1;
-  background-color: var(--bg-color);
+  background-color: var(--bg-color, #F0F8F7);
 }
 
-/* --- 모바일 화면 (가로 768px 이하) 정석 최적화 --- */
+/* ===== 모바일 (768px 이하) ===== */
 @media (max-width: 768px) {
   .container {
-    flex-direction: column; /* 좌우 배열을 위아래 배열로 변경 */
+    flex-direction: column;
   }
 
   .main {
-    margin-left: 0; /* ✨ 진범 체포: 모바일에서는 강제 왼쪽 여백을 완전히 없앰! */
+    margin-left: 0;
     width: 100%;
   }
 
   .content {
-    padding: 15px; /* 모바일은 화면이 작으니 안쪽 여백도 줄여줌 */
+    padding: 16px;
   }
 }

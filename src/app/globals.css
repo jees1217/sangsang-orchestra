@@ -1,23 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
+
 :root {
   --primary-color: #00A99D;
-  --primary-light: #E0F2F1;
-  --primary-dark: #00897B;
-  --accent-color: #F7CA18;
-  --accent-light: #FFF9C4;
-  --text-dark: #2C3E50;
-  --text-light: #7F8C8D;
-  --bg-color: #F4FBFC;
+  --primary-light: #E6F7F6;
+  --primary-dark: #008F84;
+  --primary-gradient: linear-gradient(135deg, #00A99D 0%, #00C4B4 50%, #5FD3C8 100%);
+  --accent-color: #F5B731;
+  --accent-light: #FFF4D6;
+  --navy: #253243;
+  --navy-light: #3A4D60;
+  --text-dark: #253243;
+  --text-mid: #5A6B7D;
+  --text-light: #8E9BAA;
+  --bg-color: #F0F8F7;
   --sidebar-bg: #FFFFFF;
   --header-bg: #FFFFFF;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --card-bg: #FFFFFF;
+  --shadow-sm: 0 2px 8px rgba(0, 169, 157, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 169, 157, 0.10);
+  --shadow-lg: 0 8px 32px rgba(0, 169, 157, 0.14);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --font-main: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
-
-/* ⚠️ 기기에 따른 다크모드 강제 전환 코드 삭제 완료 (항상 상상휠 화사한 테마 유지) */
 
 html {
   height: 100%;
@@ -34,9 +41,10 @@ body {
   flex-direction: column;
   color: var(--text-dark);
   background: var(--bg-color);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.02em;
 }
 
 * {
@@ -50,17 +58,17 @@ a {
   text-decoration: none;
 }
 
-/* 모바일 필수 환경 (글씨 확대 방지 및 기본 테이블 스크롤) */
+/* 모바일 환경 */
 @media (max-width: 768px) {
   html {
-    font-size: 15px;
+    font-size: 16px;
   }
   input, select, textarea {
-    font-size: 16px !important; /* 아이폰 화면 줌(Zoom) 현상 방지 */
+    font-size: 16px !important;
   }
   table, .table-container {
     display: block;
     overflow-x: auto;
-    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
   }
 }

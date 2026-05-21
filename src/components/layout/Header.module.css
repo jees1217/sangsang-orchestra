@@ -1,67 +1,107 @@
+/* ===== 헤더 - 상상휠하모니 브랜드 디자인 ===== */
+
 .header {
-  height: 80px;
-  background-color: var(--header-bg);
+  height: 72px;
+  background-color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 40px;
+  padding: 0 32px;
   position: sticky;
   top: 0;
   z-index: 90;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1px solid #E6F0EF;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
 }
 
 .userInfo {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
 }
 
 .roleBadge {
-  background-color: var(--accent-light);
-  color: var(--primary-dark);
-  padding: 6px 16px;
-  border-radius: var(--radius-lg);
-  font-size: 0.85rem;
+  background: linear-gradient(135deg, #E6F7F6 0%, #D4F1EE 100%);
+  color: #00897B;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: -0.01em;
 }
 
 .email {
   font-weight: 500;
-  color: var(--text-dark);
-  font-size: 0.95rem;
-}
-
-.logoutBtn {
-  background: transparent;
-  border: 1px solid var(--text-light);
-  color: var(--text-dark);
-  padding: 8px 20px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 600;
+  color: var(--text-mid, #5A6B7D);
   font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.logoutBtn:hover {
-  background-color: var(--text-dark);
-  border-color: var(--text-dark);
-  color: white;
 }
 
 .profileBtn {
   text-decoration: none;
   font-weight: 600;
-  color: var(--primary-color, #00A99D);
-  font-size: 0.9rem;
-  padding: 8px 16px;
-  border-radius: var(--radius-md);
+  color: #00A99D;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 10px;
   transition: all 0.2s;
 }
 
 .profileBtn:hover {
-  background-color: rgba(0, 169, 157, 0.1);
+  background-color: #E6F7F6;
+}
+
+.logoutBtn {
+  background: transparent;
+  border: 1.5px solid #D1D9E0;
+  color: var(--text-mid, #5A6B7D);
+  padding: 8px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  font-family: var(--font-main, 'Noto Sans KR', sans-serif);
+  transition: all 0.2s;
+}
+
+.logoutBtn:hover {
+  background-color: #253243;
+  border-color: #253243;
+  color: white;
+}
+
+/* ===== 모바일 (768px 이하) ===== */
+@media (max-width: 768px) {
+  .header {
+    height: auto;
+    padding: 12px 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .userInfo {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .roleBadge {
+    font-size: 0.75rem;
+    padding: 5px 12px;
+  }
+
+  .email {
+    font-size: 0.8rem;
+    display: none; /* 모바일에서 이메일 숨김 - 공간 확보 */
+  }
+
+  .profileBtn {
+    font-size: 0.8rem;
+    padding: 7px 12px;
+  }
+
+  .logoutBtn {
+    font-size: 0.8rem;
+    padding: 7px 14px;
+  }
 }
