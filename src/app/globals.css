@@ -1,12 +1,12 @@
 :root {
-  --primary-color: #00A99D; /* Teal - Main brand color */
+  --primary-color: #00A99D;
   --primary-light: #E0F2F1;
   --primary-dark: #00897B;
-  --accent-color: #F7CA18; /* Yellow - Warm orchestra accent */
+  --accent-color: #F7CA18;
   --accent-light: #FFF9C4;
-  --text-dark: #2C3E50; /* Navy - Primary text */
+  --text-dark: #2C3E50;
   --text-light: #7F8C8D;
-  --bg-color: #F4FBFC; /* Light mint/ivory background */
+  --bg-color: #F4FBFC;
   --sidebar-bg: #FFFFFF;
   --header-bg: #FFFFFF;
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -17,25 +17,13 @@
   --radius-lg: 20px;
 }
 
-@media (prefers-color-scheme: dark) {
-  /* For now we keep the warm bright tone, but we can define dark mode variables if needed */
-  :root {
-    --text-dark: #E2E8F0;
-    --text-light: #94A3B8;
-    --bg-color: #0F172A;
-    --sidebar-bg: #1E293B;
-    --header-bg: #1E293B;
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  }
-}
+/* ⚠️ 기기에 따른 다크모드 강제 전환 코드 삭제 완료 (항상 상상휠 화사한 테마 유지) */
 
 html {
   height: 100%;
 }
 
-html,
-body {
+html, body {
   max-width: 100vw;
   overflow-x: hidden;
 }
@@ -62,100 +50,17 @@ a {
   text-decoration: none;
 }
 
-/* =========================================
-   1. 대시보드 표(테이블) 및 버튼 디자인 개선
-   ========================================= */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 15px;
-  background-color: var(--sidebar-bg); /* 테마 배경색 사용 */
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-th, td {
-  padding: 12px 15px;
-  text-align: left;
-  border-bottom: 1px solid var(--bg-color); 
-}
-
-th {
-  font-weight: 600;
-  background-color: var(--bg-color);
-}
-
-/* 우측 '관리' 버튼들 디자인 (테마의 Teal 컬러 적용) */
-td button {
-  margin-right: 8px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: none;
-  background-color: var(--primary-color);
-  color: white;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-td button:hover {
-  background-color: var(--primary-dark);
-}
-
-/* =========================================
-   2. 강력한 모바일 웹 최적화 (가로 768px 이하)
-   ========================================= */
+/* 모바일 필수 환경 (글씨 확대 방지 및 기본 테이블 스크롤) */
 @media (max-width: 768px) {
-  /* 글씨 크기 및 입력창 줌 현상 방지 */
-  html { font-size: 15px; }
-  input, select, textarea { font-size: 16px !important; }
-  body { padding: 0 !important; margin: 0 !important; }
-
-  /* 모든 컨테이너 레이아웃을 강제로 세로 배치 */
-  div[class*="container"], 
-  div[class*="layout"] {
-    display: flex !important;
-    flex-direction: column !important;
-    height: auto !important;
+  html {
+    font-size: 15px;
   }
-
-  /* 사이드바(메뉴)를 위쪽으로 올리고 가로 스크롤형태로 변경 */
-  div[class*="sidebar"], 
-  aside {
-    width: 100% !important;
-    height: auto !important;
-    min-height: auto !important;
-    border-right: none !important;
-    border-bottom: 1px solid var(--bg-color);
-    padding: 10px !important;
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    white-space: nowrap;
-    gap: 10px;
-    -webkit-overflow-scrolling: touch; /* 아이폰 스크롤 부드럽게 */
+  input, select, textarea {
+    font-size: 16px !important; /* 아이폰 화면 줌(Zoom) 현상 방지 */
   }
-
-  /* 메뉴 안의 글씨들이 찌그러지지 않게 보호 */
-  div[class*="sidebar"] > * {
-    flex-shrink: 0;
-  }
-
-  /* 우측 본문 영역 가로 100% 꽉 채우기 */
-  div[class*="main"], 
-  main,
-  div[class*="content"] {
-    width: 100% !important;
-    padding: 15px !important;
-    overflow-x: hidden;
-  }
-
-  /* 모바일에서 표가 화면 밖으로 삐져나가지 않게 가로 스크롤 허용 */
-  .table-container, table {
+  table, .table-container {
     display: block;
     overflow-x: auto;
     white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
   }
 }

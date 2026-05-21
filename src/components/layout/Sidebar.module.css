@@ -95,3 +95,59 @@
   color: var(--text-light);
   text-align: center;
 }
+
+/* --- 모바일 화면 (가로 768px 이하) 사이드바 변신 --- */
+@media (max-width: 768px) {
+  .sidebar {
+    position: relative; /* 화면 고정(fixed) 해제! 본문 위쪽으로 자연스럽게 올라감 */
+    width: 100%; /* 가로 길이를 260px에서 100% 꽉 채우기로 변경 */
+    height: auto; /* 높이를 화면 끝까지(100vh) 채우던 것을 내용물 크기에 맞게 축소 */
+    padding: 15px 15px 5px 15px; /* 모바일용 여백 조절 */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* 아래쪽에만 살끔 그림자 */
+    z-index: 10;
+  }
+
+  .logoContainer {
+    margin-bottom: 15px; /* 로고 아래 여백 축소 */
+    justify-content: center; /* 로고를 가운데 정렬 */
+  }
+
+  .menuList {
+    display: flex !important;
+    flex-direction: row !important; /* 메뉴들을 세로 배열에서 가로 배열로 변경! */
+    gap: 10px;
+    overflow-x: auto !important; /* 메뉴가 많아서 넘치면 가로 스크롤 생성! */
+    padding-bottom: 10px; /* 스크롤바와 메뉴 사이 여백 */
+    -webkit-overflow-scrolling: touch; /* 아이폰에서 부드러운 스크롤 */
+  }
+
+  /* ✨ 추가됨: 모바일 가로 배치 시 메뉴 버튼들이 찌그러지지 않도록 철벽 방어 */
+  .menuList li {
+    flex-shrink: 0 !important;
+  }
+
+  /* 메뉴 밑의 가로 스크롤바 디자인 예쁘고 얇게 조절 */
+  .menuList::-webkit-scrollbar {
+    height: 4px; 
+  }
+  .menuList::-webkit-scrollbar-thumb {
+    background: var(--primary-light);
+    border-radius: 4px;
+  }
+
+  .menuItem {
+    padding: 10px 16px; /* 버튼 크기 살짝 줄임 */
+    font-size: 0.95rem;
+    white-space: nowrap; /* 메뉴 글씨 줄바꿈 절대 방지! */
+  }
+
+  /* 모바일 가로 스크롤 메뉴에서는 마우스 hover 시 
+     오른쪽으로 툭 튀어나가는 애니메이션 제거 (버그 방지) */
+  .menuItem:hover {
+    transform: none; 
+  }
+
+  .footer {
+    display: none; /* 모바일 화면에서는 공간 차지만 하는 하단 카피라이트 숨김 */
+  }
+}
