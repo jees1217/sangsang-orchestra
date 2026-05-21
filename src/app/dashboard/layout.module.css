@@ -15,3 +15,21 @@
   flex: 1;
   background-color: var(--bg-color);
 }
+
+/* --- 모바일 화면 (가로 768px 이하) 레이아웃 변경 --- */
+@media (max-width: 768px) {
+  /* 전체 뼈대를 가로(좌우) 배열에서 세로(위아래) 배열로 변경 */
+  .container {
+    flex-direction: column !important;
+  }
+
+  /* 우측 본문 영역(헤더+내용)을 모바일 화면 가로 길이에 꽉 차게 100%로 늘림 */
+  .main {
+    width: 100% !important;
+  }
+
+  /* 본문 안쪽 여백을 살짝 줄여서 모바일 화면을 더 넓게 쓰도록 조절 */
+  .content {
+    padding: 15px !important;
+  }
+}

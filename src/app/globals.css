@@ -61,3 +61,29 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* --- 모바일 최적화 (반응형) --- */
+@media (max-width: 768px) {
+  /* 1. 모바일에서는 기본 글씨 크기를 약간 키워 가독성 확보 */
+  html {
+    font-size: 15px;
+  }
+  
+  /* 2. 아이폰(iOS)에서 입력창 터치 시 화면이 확대되는 현상 방지 (16px 이상 필수) */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* 3. 표(Table)나 긴 데이터가 화면 밖으로 삐져나가지 않게 가로 스크롤 허용 */
+  table, .table-container {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  /* 4. 모바일에서는 여백을 줄여서 화면을 넓게 사용 */
+  body {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
