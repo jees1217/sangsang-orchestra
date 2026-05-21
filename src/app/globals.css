@@ -62,28 +62,100 @@ a {
   text-decoration: none;
 }
 
-/* --- 모바일 최적화 (반응형) --- */
+/* =========================================
+   1. 대시보드 표(테이블) 및 버튼 디자인 개선
+   ========================================= */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  background-color: var(--sidebar-bg); /* 테마 배경색 사용 */
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+th, td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--bg-color); 
+}
+
+th {
+  font-weight: 600;
+  background-color: var(--bg-color);
+}
+
+/* 우측 '관리' 버튼들 디자인 (테마의 Teal 컬러 적용) */
+td button {
+  margin-right: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: var(--primary-color);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+td button:hover {
+  background-color: var(--primary-dark);
+}
+
+/* =========================================
+   2. 강력한 모바일 웹 최적화 (가로 768px 이하)
+   ========================================= */
 @media (max-width: 768px) {
-  /* 1. 모바일에서는 기본 글씨 크기를 약간 키워 가독성 확보 */
-  html {
-    font-size: 15px;
-  }
-  
-  /* 2. 아이폰(iOS)에서 입력창 터치 시 화면이 확대되는 현상 방지 (16px 이상 필수) */
-  input, select, textarea {
-    font-size: 16px !important;
+  /* 글씨 크기 및 입력창 줌 현상 방지 */
+  html { font-size: 15px; }
+  input, select, textarea { font-size: 16px !important; }
+  body { padding: 0 !important; margin: 0 !important; }
+
+  /* 모든 컨테이너 레이아웃을 강제로 세로 배치 */
+  div[class*="container"], 
+  div[class*="layout"] {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
   }
 
-  /* 3. 표(Table)나 긴 데이터가 화면 밖으로 삐져나가지 않게 가로 스크롤 허용 */
-  table, .table-container {
+  /* 사이드바(메뉴)를 위쪽으로 올리고 가로 스크롤형태로 변경 */
+  div[class*="sidebar"], 
+  aside {
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--bg-color);
+    padding: 10px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    white-space: nowrap;
+    gap: 10px;
+    -webkit-overflow-scrolling: touch; /* 아이폰 스크롤 부드럽게 */
+  }
+
+  /* 메뉴 안의 글씨들이 찌그러지지 않게 보호 */
+  div[class*="sidebar"] > * {
+    flex-shrink: 0;
+  }
+
+  /* 우측 본문 영역 가로 100% 꽉 채우기 */
+  div[class*="main"], 
+  main,
+  div[class*="content"] {
+    width: 100% !important;
+    padding: 15px !important;
+    overflow-x: hidden;
+  }
+
+  /* 모바일에서 표가 화면 밖으로 삐져나가지 않게 가로 스크롤 허용 */
+  .table-container, table {
     display: block;
     overflow-x: auto;
     white-space: nowrap;
-  }
-  
-  /* 4. 모바일에서는 여백을 줄여서 화면을 넓게 사용 */
-  body {
-    padding: 0 !important;
-    margin: 0 !important;
+    -webkit-overflow-scrolling: touch;
   }
 }
