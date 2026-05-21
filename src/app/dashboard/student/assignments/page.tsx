@@ -41,6 +41,7 @@ export default function StudentAssignmentsPage() {
       // 3. 내 과제 체크 정보 가져오기
       const { data: submissionsData } = await supabase
         .from('submissions')
+        .select('*') //
         .eq('student_id', user.id)
 
       const submissionMap: Record<string, any> = {}

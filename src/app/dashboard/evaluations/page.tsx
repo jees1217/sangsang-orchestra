@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -86,7 +86,8 @@ export default function EvaluationsPage() {
       }
 
       const { data: studentsData } = await studentQuery
-      setStudents(studentsData || [])
+      // TypeScript 에러 방지를 위해 as any 추가
+      setStudents((studentsData as any) || [])
     } catch (error) {
       console.error('데이터 로딩 실패:', error)
     } finally {
