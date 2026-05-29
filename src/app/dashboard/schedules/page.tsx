@@ -41,6 +41,7 @@ export default function ScheduleManagementPage() {
   const [targetClassId, setTargetClassId] = useState('')
   const [targetUserId, setTargetUserId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // 캘린더 상태
   const [calYear, setCalYear] = useState(new Date().getFullYear())
@@ -84,7 +85,13 @@ export default function ScheduleManagementPage() {
       .select('*, teacher:teacher_id(name), target_class:target_class_id(name, cohort), target_user:target_user_id(name, cohort)')
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
-    if (error) console.error('일정 조회 실패:', error)
+    if (error) {
+      console.error('일정 조회 실패:', error)
+      setFetchError(`데이터 로드 실패: ${error.message} (code: ${error.code})`)
+      setSchedules([])
+      return
+    }
+    setFetchError(null)
     setSchedules(data || [])
   }
 
@@ -189,6 +196,18 @@ export default function ScheduleManagementPage() {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>📅 통합 일정 관리</h1>
+
+      {fetchError && (
+        <div style={{
+          background: '#FFF5F5', border: '1px solid #FC8181', borderRadius: '12px',
+          padding: '14px 18px', marginBottom: '20px', color: '#C53030', fontSize: '14px', fontWeight: 600
+        }}>
+          ⚠️ {fetchError}
+          <div style={{ fontSize: '12px', fontWeight: 400, marginTop: '4px', color: '#E53E3E' }}>
+            Supabase 대시보드에서 schedules 테이블의 RLS 정책을 확인하거나, 아래 SQL을 실행하세요.
+          </div>
+        </div>
+      )}
 
       <div className={styles.layout}>
         {/* ──────── 왼쪽: 폼 ──────── */}
