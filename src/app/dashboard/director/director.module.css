@@ -116,12 +116,16 @@
   margin-bottom: 10px;
 }
 
-.empty p {
+.empty p { font-size: 13px; line-height: 1.7; }
+
+.emptySmall {
   font-size: 13px;
-  line-height: 1.7;
+  color: var(--text-light, #8E9BAA);
+  padding: 12px 0;
+  text-align: center;
 }
 
-/* ── 더보기 / 푸터 링크 ── */
+/* ── 더보기 링크 ── */
 .moreLink {
   display: block;
   text-align: right;
@@ -131,266 +135,303 @@
   color: var(--primary-color, #00A99D);
   transition: color 0.2s;
 }
-
 .moreLink:hover { color: var(--primary-dark, #008F84); }
 
-.cardFooterLinks {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 16px;
-  gap: 8px;
-}
-
-.cardFooterLinks .moreLink {
-  margin-top: 0;
-}
-
 /* ════════════════════════════════════
-   카드 1: 다음 합주/공연
+   카드 1: 전체 출결 현황
 ════════════════════════════════════ */
-.scheduleList {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  flex: 1;
-}
 
-.scheduleItem {
-  padding: 14px;
-  border-radius: var(--radius-md, 14px);
-  border: 1.5px solid #E6F0EF;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.scheduleItem:hover {
-  border-color: var(--primary-color, #00A99D);
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,169,157,0.06));
-}
-
-.scheduleTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.typeBadge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  font-family: inherit;
-}
-
-.daysLeft {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--primary-color, #00A99D);
-  background: var(--primary-light, #E6F7F6);
-  padding: 2px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.daysToday {
-  color: white;
-  background: var(--primary-color, #00A99D);
-}
-
-.daysSoon {
-  color: #C05621;
-  background: var(--accent-light, #FFF4D6);
-}
-
-.scheduleTitle {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--navy, #253243);
-  line-height: 1.4;
-}
-
-.scheduleMeta {
-  display: flex;
-  flex-wrap: wrap;
+/* 숫자 3개 가로 배치 */
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  margin-bottom: 6px;
+}
+
+.statBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 14px 8px;
+  border-radius: var(--radius-md, 14px);
+  gap: 4px;
+}
+
+.statNum {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.statLabel {
   font-size: 12px;
-  color: var(--text-mid, #5A6B7D);
+  font-weight: 600;
 }
 
-.scheduleLocation {
+.statPresent { background: #F0FFF4; }
+.statPresent .statNum   { color: #276749; }
+.statPresent .statLabel { color: #38A169; }
+
+.statLate    { background: var(--accent-light, #FFF4D6); }
+.statLate .statNum   { color: #C05621; }
+.statLate .statLabel { color: var(--accent-color, #F5B731); }
+
+.statAbsent  { background: #FFF5F5; }
+.statAbsent .statNum   { color: #C53030; }
+.statAbsent .statLabel { color: #E53E3E; }
+
+.statTotal {
   font-size: 12px;
+  color: var(--text-light, #8E9BAA);
+  text-align: right;
+  margin-bottom: 16px;
+}
+
+/* 결석자 리스트 */
+.sectionLabel {
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text-mid, #5A6B7D);
-  word-break: break-all;
+  margin-bottom: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #F0F5F4;
 }
 
-.locationLink {
-  color: var(--primary-color, #00A99D);
-  text-decoration: underline;
-}
-
-/* ════════════════════════════════════
-   카드 2: 파트별 출석률
-════════════════════════════════════ */
-.partList {
+.absenceList {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0;
   flex: 1;
 }
 
-.partItem {
+.absenceItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 10px);
+  transition: background 0.15s;
+}
+
+.absenceItem:hover { background: #FFF5F5; }
+
+.absenceName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy, #253243);
+}
+
+.absenceDate {
+  font-size: 12px;
+  color: #E53E3E;
+  font-weight: 600;
+}
+
+/* ════════════════════════════════════
+   카드 2: 강의평가 피드
+════════════════════════════════════ */
+.evalList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+.evalItem {
+  padding: 12px 0;
+  border-bottom: 1px solid #F0F5F4;
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-.partHeader {
+.evalItem:last-child { border-bottom: none; }
+
+.evalHeader {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
-.partName {
+.evalTeacher {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary-dark, #008F84);
+}
+
+.evalArrow {
+  font-size: 12px;
+  color: var(--text-light, #8E9BAA);
+}
+
+.evalStudent {
   font-size: 13px;
   font-weight: 700;
   color: var(--navy, #253243);
 }
 
-.partRate {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--primary-color, #00A99D);
-}
-
-.partRateLow {
-  color: var(--accent-color, #F5B731);
-}
-
-/* 출석 바 */
-.barTrack {
-  width: 100%;
-  height: 8px;
-  background: #EDF2F7;
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.barFill {
-  height: 100%;
-  background: var(--primary-gradient, linear-gradient(135deg, #00A99D 0%, #00C4B4 100%));
-  border-radius: 999px;
-  transition: width 0.4s ease;
-  min-width: 4px;
-}
-
-.barFillLow {
-  background: linear-gradient(135deg, #F5B731 0%, #F6C948 100%);
-}
-
-.partDetail {
+.evalDate {
+  margin-left: auto;
   font-size: 11px;
   color: var(--text-light, #8E9BAA);
+  white-space: nowrap;
+}
+
+.evalScore {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.evalScoreNum {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid, #5A6B7D);
+}
+
+.evalComment {
+  font-size: 12px;
+  color: var(--text-mid, #5A6B7D);
+  line-height: 1.5;
+  background: var(--bg-color, #F0F8F7);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 10px);
+  font-style: italic;
 }
 
 /* ════════════════════════════════════
-   카드 3: 마스터 공지사항
+   카드 3: 일정 & 퀵 메뉴
 ════════════════════════════════════ */
-.newNoticeBtn {
+
+/* 미니 일정 */
+.miniScheduleList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.miniScheduleItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.miniDays {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--primary-light, #E6F7F6);
+  color: var(--primary-color, #00A99D);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.daysToday {
+  background: var(--primary-color, #00A99D);
+  color: white;
+}
+
+.daysSoon {
+  background: var(--accent-light, #FFF4D6);
+  color: #C05621;
+}
+
+.miniScheduleBody {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.miniScheduleType { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+.miniScheduleTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy, #253243);
+  line-height: 1.4;
+}
+
+.miniScheduleMeta {
+  font-size: 11px;
+  color: var(--text-mid, #5A6B7D);
+  margin-top: 2px;
+}
+
+.scheduleMoreLink {
   display: block;
-  width: 100%;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-color, #00A99D);
+  margin-top: 10px;
+  transition: color 0.2s;
+}
+.scheduleMoreLink:hover { color: var(--primary-dark, #008F84); }
+
+/* 구분선 */
+.divider {
+  height: 1.5px;
+  background: var(--primary-light, #E6F7F6);
+  margin: 18px 0;
+}
+
+/* 퀵 메뉴 버튼 그리드 */
+.quickMenuGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.quickBtnPrimary {
+  grid-column: 1 / -1;
+  display: block;
   padding: 11px;
   background: var(--primary-gradient, linear-gradient(135deg, #00A99D 0%, #00C4B4 100%));
   color: white;
   text-align: center;
   border-radius: var(--radius-md, 14px);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   font-family: inherit;
-  margin-bottom: 18px;
-  transition: opacity 0.2s, transform 0.2s;
   box-shadow: 0 2px 8px rgba(0,169,157,0.2);
+  transition: opacity 0.2s, transform 0.2s;
 }
+.quickBtnPrimary:hover { opacity: 0.88; transform: translateY(-1px); }
 
-.newNoticeBtn:hover {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-
-.noticeList {
-  list-style: none;
-  flex: 1;
-}
-
-.noticeItem {
-  padding: 12px 0;
-  border-bottom: 1px solid #F0F5F4;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.noticeItem:last-child { border-bottom: none; }
-
-.noticeTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.noticeTypeBadge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.noticeAnnounce {
-  background: var(--primary-light, #E6F7F6);
-  color: var(--primary-dark, #008F84);
-}
-
-.noticeAssignment {
-  background: var(--accent-light, #FFF4D6);
-  color: #C05621;
-}
-
-.noticeDate {
-  font-size: 11px;
-  color: var(--text-light, #8E9BAA);
-}
-
-.noticeTitle {
-  font-size: 14px;
-  font-weight: 600;
+.quickBtnOutline {
+  display: block;
+  padding: 10px;
+  background: white;
   color: var(--navy, #253243);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
+  border-radius: var(--radius-md, 14px);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 1.5px solid #E6F0EF;
+  transition: border-color 0.2s, background 0.2s;
 }
-
-.noticeWriter {
-  font-size: 12px;
-  color: var(--text-mid, #5A6B7D);
+.quickBtnOutline:hover {
+  border-color: var(--primary-color, #00A99D);
+  background: var(--primary-light, #E6F7F6);
 }
 
 /* ══════════════════════════════════════
    반응형 (960px: 2열 / 768px: 1열)
 ══════════════════════════════════════ */
 @media (max-width: 960px) {
-  .grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .grid > :last-child {
-    grid-column: 1 / -1;
-  }
+  .grid { grid-template-columns: 1fr 1fr; }
+  .grid > :last-child { grid-column: 1 / -1; }
 }
 
 @media (max-width: 768px) {
@@ -406,13 +447,10 @@
   .welcomeGreeting { font-size: 18px; }
   .welcomeDate { font-size: 13px; text-align: left; }
 
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
+  .grid { grid-template-columns: 1fr; }
   .grid > :last-child { grid-column: auto; }
 
   .card { padding: 18px 16px; border-radius: 16px; }
 
-  .cardFooterLinks { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .statNum { font-size: 22px; }
 }
