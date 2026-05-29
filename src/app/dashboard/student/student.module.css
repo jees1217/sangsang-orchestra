@@ -339,8 +339,4 @@
     border-radius: 16px;
   }
 
-  /* 모바일: input/select zoom 방지 */
-  input, select {
-    font-size: 16px !important;
-  }
 }
