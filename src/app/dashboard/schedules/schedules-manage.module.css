@@ -1,48 +1,387 @@
-.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-.title { font-size: 26px; font-weight: bold; color: #1b365d; margin-bottom: 24px; }
-.layout { display: flex; gap: 24px; align-items: flex-start; }
-@media (max-width: 960px) { .layout { flex-direction: column; } }
+/* =====================================================
+   통합 일정 관리 - schedules-manage.module.css
+   DESIGN_SYSTEM.md 기반 CSS 변수 100% 활용
+   ===================================================== */
 
-.leftPanel { width: 35%; display: flex; flex-direction: column; gap: 24px; }
-.rightPanel { width: 65%; display: flex; flex-direction: column; gap: 24px; }
+/* ── 레이아웃 ── */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px;
+  font-family: var(--font-main, 'Noto Sans KR', sans-serif);
+}
 
-/* 카드 공통 */
-.card { background: white; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-.cardTitle { font-size: 18px; font-weight: bold; color: #2d3748; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #edf2f7; }
+.title {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--navy, #253243);
+  margin-bottom: 28px;
+  letter-spacing: -0.02em;
+}
 
-/* 폼 요소 */
+.layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.leftPanel  { width: 36%; display: flex; flex-direction: column; gap: 20px; }
+.rightPanel { width: 64%; display: flex; flex-direction: column; gap: 20px; }
+
+.loadingBox {
+  padding: 60px;
+  text-align: center;
+  color: var(--primary-color, #00A99D);
+  font-weight: 600;
+  background: white;
+  border-radius: var(--radius-lg, 22px);
+  border: 1px solid var(--primary-light, #E6F7F6);
+}
+
+/* ── 카드 ── */
+.card {
+  background: var(--card-bg, #FFFFFF);
+  padding: 24px;
+  border-radius: var(--radius-lg, 22px);
+  border: 1px solid #E6F0EF;
+  box-shadow: var(--shadow-md, 0 4px 16px rgba(0,169,157,0.10));
+}
+
+.cardTitle {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--navy, #253243);
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1.5px solid var(--primary-light, #E6F7F6);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.clearBtn {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-color, #00A99D);
+  background: var(--primary-light, #E6F7F6);
+  border: none;
+  border-radius: 20px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.clearBtn:hover { background: #cceae8; }
+
+/* ── 폼 요소 ── */
 .formGroup { margin-bottom: 16px; }
-.label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 6px; }
-.input, .select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
-.input:focus, .select:focus { border-color: #00A99D; }
-.row { display: flex; gap: 12px; }
-.row > div { flex: 1; }
 
-.submitBtn { width: 100%; padding: 12px; background-color: #00A99D; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 8px; }
-.submitBtn:hover { background-color: #008f84; }
+.label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid, #5A6B7D);
+  margin-bottom: 7px;
+}
 
-/* 선생님 가용시간 참조 박스 */
-.availBox { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-size: 13px; }
-.availItem { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #e2e8f0; }
+.input, .select {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid #D1D9E0;
+  border-radius: var(--radius-md, 14px);
+  font-size: 14px;
+  outline: none;
+  font-family: var(--font-main, 'Noto Sans KR', sans-serif);
+  color: var(--navy, #253243);
+  background: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input:focus, .select:focus {
+  border-color: var(--primary-color, #00A99D);
+  box-shadow: 0 0 0 3px rgba(0,169,157,0.10);
+}
+
+.row { display: flex; gap: 10px; align-items: center; }
+.row > .input, .row > .select { flex: 1; }
+
+.timeSep { color: var(--text-mid); font-weight: 600; flex-shrink: 0; }
+
+.submitBtn {
+  width: 100%;
+  padding: 13px;
+  background: var(--primary-gradient, linear-gradient(135deg, #00A99D 0%, #00C4B4 100%));
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 14px);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 8px;
+  font-family: inherit;
+  box-shadow: 0 2px 8px rgba(0,169,157,0.2);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.submitBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,169,157,0.3); }
+.submitBtn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+
+/* ── 선생님 가용시간 ── */
+.availBox {
+  background: var(--bg-color, #F0F8F7);
+  border: 1px solid var(--primary-light, #E6F7F6);
+  border-radius: var(--radius-sm, 10px);
+  padding: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.availItem {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px dashed #D5EAE8;
+  color: var(--text-dark, #253243);
+}
 .availItem:last-child { border-bottom: none; }
 
-/* 일정 리스트 */
-.scheduleCard { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; transition: transform 0.2s; }
-.scheduleCard:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-.scHeader { display: flex; justify-content: space-between; align-items: center; }
-.scTitle { font-size: 16px; font-weight: bold; color: #1a202c; }
-.scMeta { font-size: 13px; color: #718096; display: flex; gap: 12px; flex-wrap: wrap; }
-.scLocation { background: #f1f5f9; padding: 6px 10px; border-radius: 6px; font-size: 13px; color: #475569; word-break: break-all; }
+/* ─────────────────────────────────────────
+   월간 캘린더
+───────────────────────────────────────── */
+.calHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
 
-/* 뱃지 */
-.badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: bold; }
-.bgMint { background: #e6f7f6; color: #00A99D; }
-.bgBlue { background: #ebf8ff; color: #3182ce; }
-.bgOrange { background: #fffaf0; color: #dd6b20; }
-.bgPurple { background: #faf5ff; color: #805ad5; }
-.bgGray { background: #f1f5f9; color: #475569; }
-.targetBadge { background: #edf2f7; color: #2d3748; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.calTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--navy, #253243);
+  letter-spacing: -0.02em;
+}
 
-.deleteBtn { background: none; border: none; color: #ef4444; font-size: 13px; cursor: pointer; padding: 4px; }
-.deleteBtn:hover { text-decoration: underline; }
-.empty { text-align: center; color: #a0aec0; padding: 40px 0; font-size: 14px; }
+.calNavBtn {
+  background: var(--primary-light, #E6F7F6);
+  color: var(--primary-dark, #008F84);
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  line-height: 1;
+}
+.calNavBtn:hover { background: #c5e4e2; }
+
+/* 가로 스크롤 래퍼 (모바일 대응) */
+.calScrollWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  min-width: 320px;
+}
+
+.calWeekLabel {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid, #5A6B7D);
+  padding: 8px 0;
+  border-bottom: 1.5px solid var(--primary-light, #E6F7F6);
+}
+
+.calCell {
+  min-height: 72px;
+  border: 0.5px solid #EDF2F1;
+  padding: 6px 4px 4px;
+  cursor: default;
+  box-sizing: border-box;
+}
+
+.calCellDay {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.calCellDay:hover { background: var(--primary-light, #E6F7F6); }
+
+.calToday {
+  background: #F0FBF9;
+}
+.calToday .calDayNum {
+  background: var(--primary-color, #00A99D);
+  color: white !important;
+}
+
+.calSelected {
+  background: #E6F7F6 !important;
+  outline: 2px solid var(--primary-color, #00A99D);
+  outline-offset: -2px;
+}
+
+.calDayNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy, #253243);
+  margin-bottom: 3px;
+}
+
+.sun { color: #E53E3E !important; }
+.sat { color: #3182CE !important; }
+
+.calDots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.calDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.calMoreDot {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-mid);
+  line-height: 6px;
+}
+
+/* 컬러 도트 */
+.typeMintDot   { background: #00A99D; }
+.typeBlueDot   { background: #3182CE; }
+.typePurpleDot { background: #805AD5; }
+.typeOrangeDot { background: #DD6B20; }
+.typeGrayDot   { background: #94A3B8; }
+
+/* 범례 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--primary-light, #E6F7F6);
+}
+.legendItem { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-mid, #5A6B7D); }
+.legendDot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────
+   일정 카드 리스트
+───────────────────────────────────────── */
+.scheduleCard {
+  background: white;
+  border: 1.5px solid #E6F0EF;
+  border-radius: var(--radius-md, 14px);
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.scheduleCard:last-child { margin-bottom: 0; }
+.scheduleCard:hover { border-color: var(--primary-color, #00A99D); box-shadow: var(--shadow-md, 0 4px 16px rgba(0,169,157,0.10)); }
+
+.scHeader { display: flex; justify-content: space-between; align-items: flex-start; }
+.scHeaderLeft { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.scTitle { font-size: 15px; font-weight: 700; color: var(--navy, #253243); }
+.scMeta  { font-size: 13px; color: var(--text-mid, #5A6B7D); display: flex; gap: 14px; flex-wrap: wrap; }
+.scLocation {
+  background: var(--bg-color, #F0F8F7);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm, 10px);
+  font-size: 13px;
+  color: var(--text-mid, #5A6B7D);
+  word-break: break-all;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #EF4444;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.deleteBtn:hover { background: #FEF2F2; }
+
+.empty {
+  text-align: center;
+  color: var(--text-light, #8E9BAA);
+  padding: 40px 0;
+  font-size: 14px;
+}
+
+/* ── 뱃지 ── */
+.badge {
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.typeMint   { background: #E6F7F6; color: #00897B; }
+.typeBlue   { background: #EBF8FF; color: #2B6CB0; }
+.typePurple { background: #FAF5FF; color: #6B46C1; }
+.typeOrange { background: #FFFAF0; color: #C05621; }
+.typeGray   { background: #F1F5F9; color: #475569; }
+.targetBadge { background: #EDF2F7; color: #4A5568; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+
+/* ══════════════════════════════════════
+   모바일 반응형 (max-width: 768px)
+══════════════════════════════════════ */
+@media (max-width: 960px) {
+  .layout { flex-direction: column; }
+  .leftPanel, .rightPanel { width: 100%; }
+}
+
+@media (max-width: 768px) {
+  .container { padding: 16px; }
+
+  .title { font-size: 22px; margin-bottom: 20px; }
+
+  .card { padding: 18px 16px; border-radius: 16px; }
+
+  .cardTitle { font-size: 15px; }
+
+  .calCell { min-height: 52px; }
+
+  .calDayNum { width: 22px; height: 22px; font-size: 12px; }
+
+  .calDot { width: 5px; height: 5px; }
+
+  .legend { gap: 6px 12px; }
+  .legendItem { font-size: 11px; }
+
+  .scTitle { font-size: 14px; }
+  .scMeta  { font-size: 12px; gap: 8px; }
+  .badge   { font-size: 11px; }
+
+  .input, .select { font-size: 16px; padding: 12px 14px; }
+}
