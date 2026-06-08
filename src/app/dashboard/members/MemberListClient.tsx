@@ -61,9 +61,10 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const [teacherClassMap, setTeacherClassMap] = useState<Record<string, TeacherClassItem[]>>({})
 
   // 반 생성 모달
-  const [classCreateOpen, setClassCreateOpen]   = useState(false)
-  const [classCreateName, setClassCreateName]   = useState('')
-  const [classCreateSaving, setClassCreateSaving] = useState(false)
+  const [classCreateOpen, setClassCreateOpen]       = useState(false)
+  const [classCreateName, setClassCreateName]       = useState('')
+  const [classCreateTeacherId, setClassCreateTeacherId] = useState('')
+  const [classCreateSaving, setClassCreateSaving]   = useState(false)
 
   // 교사 반 배정 모달
   const [classModalOpen, setClassModalOpen]       = useState(false)
@@ -131,18 +132,19 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = classCreateName.trim()
-    if (!trimmed) return
+    if (!trimmed || !classCreateTeacherId) return
     setClassCreateSaving(true)
     try {
       const { data, error } = await supabase
         .from('classes')
-        .insert({ name: trimmed })
+        .insert({ name: trimmed, teacher_id: classCreateTeacherId })
         .select('id, name, professor_id, instructor_id')
         .single()
       if (error) throw error
       const newRow = data as ClassRow
       setAllClassData(prev => [...prev, newRow].sort((a, b) => a.name.localeCompare(b.name, 'ko')))
       setClassCreateName('')
+      setClassCreateTeacherId('')
       setClassCreateOpen(false)
       showFeedback(`'${newRow.name}' 반이 생성되었습니다.`, 'success')
     } catch (err: any) {
@@ -555,7 +557,7 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
 
       {/* ── 클래스(반) 생성 모달 ── */}
       {classCreateOpen && (
-        <div className={styles.modalOverlay} onClick={() => { setClassCreateOpen(false); setClassCreateName('') }}>
+        <div className={styles.modalOverlay} onClick={() => { setClassCreateOpen(false); setClassCreateName(''); setClassCreateTeacherId('') }}>
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <h2 className={styles.modalTitle}>클래스(반) 생성</h2>
             <form onSubmit={handleCreateClass}>
@@ -570,14 +572,34 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
                   onChange={e => setClassCreateName(e.target.value)}
                 />
               </div>
+              <div className={styles.formGroup}>
+                <label>담당 선생님</label>
+                {users.filter(u => u.role === 'teacher').length === 0 ? (
+                  <p style={{ fontSize: 13, color: '#e53e3e', margin: '4px 0 0' }}>
+                    등록된 선생님이 없습니다. 먼저 선생님 계정을 추가해 주세요.
+                  </p>
+                ) : (
+                  <select
+                    required
+                    value={classCreateTeacherId}
+                    onChange={e => setClassCreateTeacherId(e.target.value)}
+                  >
+                    <option value="">선택하세요</option>
+                    {users
+                      .filter(u => u.role === 'teacher')
+                      .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
+                    }
+                  </select>
+                )}
+              </div>
               <div className={styles.modalActions}>
                 <button type="button" className={styles.secondaryBtn}
-                  onClick={() => { setClassCreateOpen(false); setClassCreateName('') }}
+                  onClick={() => { setClassCreateOpen(false); setClassCreateName(''); setClassCreateTeacherId('') }}
                   disabled={classCreateSaving}>
                   취소
                 </button>
                 <button type="submit" className={styles.primaryBtn}
-                  disabled={classCreateSaving || !classCreateName.trim()}
+                  disabled={classCreateSaving || !classCreateName.trim() || !classCreateTeacherId}
                   style={{ justifyContent: 'center' }}>
                   {classCreateSaving ? '생성 중...' : '생성하기'}
                 </button>
