@@ -10,7 +10,7 @@ async function MembersTableLoader({ viewerRole }: { viewerRole: string }) {
 
   const { data: users, error } = await supabase
     .from('users')
-    .select('id, email, name, role, cohort, instrument, created_at, class_id, guardian, phone, address, note')
+    .select('id, email, name, role, cohort, instrument, created_at, class_id, guardian, phone, address, note, is_active, birth_date, grade, guardian_phone')
     .order('created_at', { ascending: false })
 
   if (error) {

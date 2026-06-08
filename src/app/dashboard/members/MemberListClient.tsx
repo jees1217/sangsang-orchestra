@@ -18,6 +18,9 @@ type User = {
   address?: string | null
   note?: string | null
   is_active?: boolean
+  birth_date?: string | null
+  grade?: string | null
+  guardian_phone?: string | null
 }
 
 interface ClassRow {
@@ -106,7 +109,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   // 행 펼치기 (개인정보)
   const [expandedRows, setExpandedRows]   = useState<Set<string>>(new Set())
   const [editingPrivate, setEditingPrivate] = useState<string | null>(null)
-  const [privateDraft, setPrivateDraft]   = useState({ guardian: '', phone: '', address: '', note: '' })
+  const [privateDraft, setPrivateDraft]   = useState({ guardian: '', phone: '', address: '', note: '', birth_date: '', grade: '', guardian_phone: '' })
   const [privateSaving, setPrivateSaving] = useState(false)
 
   // CSV 가져오기
@@ -162,10 +165,13 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
   const openPrivateEdit = (u: User) => {
     setPrivateDraft({
-      guardian: u.guardian || '',
-      phone:    u.phone    || '',
-      address:  u.address  || '',
-      note:     u.note     || '',
+      guardian:       u.guardian       || '',
+      phone:          u.phone          || '',
+      address:        u.address        || '',
+      note:           u.note           || '',
+      birth_date:     u.birth_date     || '',
+      grade:          u.grade          || '',
+      guardian_phone: u.guardian_phone || '',
     })
     setEditingPrivate(u.id)
   }
@@ -504,14 +510,33 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   }
 
   // ── CSV 다운로드 ──
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '-'
+    const d = new Date(dateStr)
+    return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('ko-KR')
+  }
+
   const handleExportCSV = () => {
     try {
-      const headers = ['이름', '이메일', '권한', '기수', '악기', '소속반', '가입일']
+      const headers = ['이름', '이메일', '권한', '기수', '악기', '소속반', '가입일', '생년월일', '학년', '연락처', '보호자', '보호자 연락처', '주소', '비고']
       const rows = filteredUsers.map(u => {
         const className = u.class_id
           ? allClassData.find(c => c.id === u.class_id)?.name || u.class_id
           : '-'
-        return [u.name, u.email, roleLabels[u.role] || u.role, u.cohort ? `${u.cohort}기` : '-', u.instrument || '-', className || '-', new Date(u.created_at).toLocaleDateString('ko-KR')]
+        return [
+          u.name, u.email, roleLabels[u.role] || u.role,
+          u.cohort ? `${u.cohort}기` : '-',
+          u.instrument || '-',
+          className || '-',
+          new Date(u.created_at).toLocaleDateString('ko-KR'),
+          formatDate(u.birth_date),
+          u.grade          || '-',
+          u.phone          || '-',
+          u.guardian       || '-',
+          u.guardian_phone || '-',
+          u.address        || '-',
+          (u.note || '-').replace(/\n/g, ' '),
+        ]
       })
       const csv  = [headers.join(','), ...rows.map(r => r.map(cell => `"${cell}"`).join(','))].join('\n')
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -762,9 +787,24 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                       <div className={styles.privatePanel}>
                         <div className={styles.privatePanelGrid}>
                           <div className={styles.privateField}>
+                            <label>생년월일</label>
+                            <input type="date" value={privateDraft.birth_date}
+                              onChange={e => setPrivateDraft(d => ({ ...d, birth_date: e.target.value }))} />
+                          </div>
+                          <div className={styles.privateField}>
+                            <label>학년</label>
+                            <input value={privateDraft.grade} placeholder="예: 중2, 고1, 성인"
+                              onChange={e => setPrivateDraft(d => ({ ...d, grade: e.target.value }))} />
+                          </div>
+                          <div className={styles.privateField}>
                             <label>보호자</label>
                             <input value={privateDraft.guardian} placeholder="보호자 이름"
                               onChange={e => setPrivateDraft(d => ({ ...d, guardian: e.target.value }))} />
+                          </div>
+                          <div className={styles.privateField}>
+                            <label>보호자 연락처</label>
+                            <input value={privateDraft.guardian_phone} placeholder="010-0000-0000"
+                              onChange={e => setPrivateDraft(d => ({ ...d, guardian_phone: e.target.value }))} />
                           </div>
                           <div className={styles.privateField}>
                             <label>연락처</label>
@@ -794,8 +834,20 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                       <div className={styles.privatePanel}>
                         <div className={styles.privatePanelGrid}>
                           <div className={styles.privateItem}>
+                            <span className={styles.privateLabel}>생년월일</span>
+                            <span className={styles.privateValue}>{formatDate(u.birth_date) !== '-' ? formatDate(u.birth_date) : <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                          <div className={styles.privateItem}>
+                            <span className={styles.privateLabel}>학년</span>
+                            <span className={styles.privateValue}>{u.grade || <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                          <div className={styles.privateItem}>
                             <span className={styles.privateLabel}>보호자</span>
                             <span className={styles.privateValue}>{u.guardian || <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                          <div className={styles.privateItem}>
+                            <span className={styles.privateLabel}>보호자 연락처</span>
+                            <span className={styles.privateValue}>{u.guardian_phone || <span className={styles.privateEmpty}>미입력</span>}</span>
                           </div>
                           <div className={styles.privateItem}>
                             <span className={styles.privateLabel}>연락처</span>
