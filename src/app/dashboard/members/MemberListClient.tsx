@@ -17,6 +17,7 @@ type User = {
   phone?: string | null
   address?: string | null
   note?: string | null
+  is_active?: boolean
 }
 
 interface ClassRow {
@@ -72,6 +73,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   const [filterCohort, setFilterCohort]         = useState('all')
   const [filterInstrument, setFilterInstrument] = useState('all')
   const [filterClass, setFilterClass]           = useState('all')
+  const [filterActive, setFilterActive]         = useState<'active' | 'inactive' | 'all'>('active')
 
   // 단원 추가 모달
   const [isModalOpen, setIsModalOpen]   = useState(false)
@@ -190,6 +192,26 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     }
   }
 
+  // ── 활성/비활성 토글 ──
+  const handleToggleActive = async (userId: string, currentActive: boolean) => {
+    setLoadingId(userId)
+    try {
+      const res  = await fetch('/api/users/private', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, is_active: !currentActive }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '변경 실패')
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentActive } : u))
+      showFeedback(!currentActive ? '활성으로 전환되었습니다.' : '비활성으로 전환되었습니다.', 'success')
+    } catch (err: any) {
+      showFeedback(`변경 실패: ${err.message}`, 'error')
+    } finally {
+      setLoadingId(null)
+    }
+  }
+
   // ── CSV 파싱 헬퍼 ──
   const parseCsvLine = (line: string): string[] => {
     const result: string[] = []
@@ -278,9 +300,13 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
         if (user.role === 'student')      matchClass = user.class_id === filterClass
         else if (user.role === 'teacher') matchClass = (teacherClassMap[user.id] || []).some(tc => tc.classId === filterClass)
       }
-      return matchSearch && matchRole && matchCohort && matchInstrument && matchClass
+      const matchActive =
+        filterActive === 'all' ? true :
+        filterActive === 'active' ? (user.is_active !== false) :
+        user.is_active === false
+      return matchSearch && matchRole && matchCohort && matchInstrument && matchClass && matchActive
     })
-  }, [users, searchTerm, filterRole, filterCohort, filterInstrument, filterClass, teacherClassMap])
+  }, [users, searchTerm, filterRole, filterCohort, filterInstrument, filterClass, filterActive, teacherClassMap])
 
   // ── 반 생성 ──
   const handleCreateClass = async (e: React.FormEvent) => {
@@ -657,6 +683,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
           <option value="all">전체 반</option>
           {allClassData.filter(c => c.name).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
+        <select className={styles.filterSelect} value={filterActive} onChange={e => setFilterActive(e.target.value as 'active' | 'inactive' | 'all')}>
+          <option value="active">활성 단원만</option>
+          <option value="inactive">비활성 단원만</option>
+          <option value="all">전체 (활성+비활성)</option>
+        </select>
       </div>
 
       {/* ── 테이블 ── */}
@@ -685,7 +716,10 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
           <tbody>
             {filteredUsers.map(u => (
               <>
-              <tr key={u.id} className={expandedRows.has(u.id) ? styles.expandedMainRow : ''}>
+              <tr key={u.id} className={[
+                expandedRows.has(u.id) ? styles.expandedMainRow : '',
+                u.is_active === false ? styles.inactiveRow : '',
+              ].filter(Boolean).join(' ')}>
                 <td style={{ padding: '14px 8px', textAlign: 'center' }}>
                   <button className={styles.expandToggle} onClick={() => toggleExpand(u.id)}
                     title={expandedRows.has(u.id) ? '접기' : '개인정보 펼치기'}>
@@ -707,6 +741,13 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                 <td>{renderClassCell(u)}</td>
                 <td>{new Date(u.created_at).toLocaleDateString('ko-KR')}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  <button
+                    className={u.is_active === false ? styles.activateBtn : styles.deactivateBtn}
+                    onClick={() => handleToggleActive(u.id, u.is_active !== false)}
+                    disabled={loadingId === u.id}
+                    style={{ marginRight: '4px' }}>
+                    {u.is_active === false ? '활성화' : '비활성'}
+                  </button>
                   <button className={styles.deleteBtn} style={{ color: '#0ea5e9', marginRight: '4px' }}
                     onClick={() => handleResetPassword(u.id)} disabled={loadingId === u.id}>비번 초기화</button>
                   <button className={styles.deleteBtn} onClick={() => handleDelete(u.id, u.name)} disabled={loadingId === u.id}>삭제</button>

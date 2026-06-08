@@ -25,14 +25,22 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: '관리자 또는 디렉터만 수정할 수 있습니다.' }, { status: 403 })
     }
 
-    const { id, guardian, phone, address, note } = await request.json()
+    const body = await request.json()
+    const { id } = body
     if (!id) return NextResponse.json({ error: '유저 ID가 필요합니다.' }, { status: 400 })
+
+    const updates: Record<string, unknown> = {}
+    if ('guardian'  in body) updates.guardian  = body.guardian  ?? null
+    if ('phone'     in body) updates.phone     = body.phone     ?? null
+    if ('address'   in body) updates.address   = body.address   ?? null
+    if ('note'      in body) updates.note      = body.note      ?? null
+    if ('is_active' in body) updates.is_active = body.is_active
 
     const { data, error } = await supabaseAdmin
       .from('users')
-      .update({ guardian: guardian ?? null, phone: phone ?? null, address: address ?? null, note: note ?? null })
+      .update(updates)
       .eq('id', id)
-      .select('id, guardian, phone, address, note')
+      .select('id, guardian, phone, address, note, is_active')
       .single()
 
     if (error) throw error

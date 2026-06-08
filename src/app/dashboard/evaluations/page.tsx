@@ -65,6 +65,7 @@ export default function EvaluationsPage() {
         .from('users')
         .select('id, name, classes(name)')
         .eq('role', 'student')
+        .eq('is_active', true)
         .order('name')
 
       if (userData.role === 'teacher') {

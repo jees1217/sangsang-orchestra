@@ -84,6 +84,7 @@ export default function TeacherStudentsPage() {
         .from('users')
         .select('id, name, cohort, instrument')
         .in('id', studentIds)
+        .eq('is_active', true)
         .order('name')
 
       // 최근 30일 출석 (모든 담당 학생)

@@ -99,10 +99,10 @@ export default function DirectorMonitoringPage() {
           .eq('date', todayStr),
 
         // 전체 학생
-        supabase.from('users').select('id, name, instrument').eq('role', 'student'),
+        supabase.from('users').select('id, name, instrument').eq('role', 'student').eq('is_active', true),
 
         // 전체 교사
-        supabase.from('users').select('id, name').eq('role', 'teacher'),
+        supabase.from('users').select('id, name').eq('role', 'teacher').eq('is_active', true),
 
         // 최근 30일 출석 (학생별 결석 집계용)
         supabase

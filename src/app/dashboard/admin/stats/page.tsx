@@ -35,7 +35,7 @@ export default function AdminStatsPage() {
   const fetchRawData = async () => {
     try {
       // 유저 데이터 (cohort, instrument 포함)
-      const { data: users } = await supabase.from('users').select('id, role, class_id, cohort, instrument')
+      const { data: users } = await supabase.from('users').select('id, role, class_id, cohort, instrument').eq('is_active', true)
       
       // 평가 데이터 (어떤 학생의 평가인지 cohort까지 가져옴)
       const { data: evaluations } = await supabase
