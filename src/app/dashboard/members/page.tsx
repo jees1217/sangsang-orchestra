@@ -12,7 +12,7 @@ async function MembersTableLoader() {
   // [수정됨] 유저 목록 가져올 때 cohort(기수), instrument(악기) 추가
   const { data: users, error } = await supabase
     .from('users')
-    .select('id, email, name, role, cohort, instrument, created_at')
+    .select('id, email, name, role, cohort, instrument, created_at, class_id')
     .order('created_at', { ascending: false })
 
   if (error) {
