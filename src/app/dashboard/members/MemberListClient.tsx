@@ -50,6 +50,7 @@ type CsvRow = {
   role: string
   cohort: string
   instrument: string
+  is_active: boolean
   errors: string[]
 }
 
@@ -251,6 +252,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       role:       headers.findIndex(h => ['역할', 'role'].includes(h)),
       cohort:     headers.findIndex(h => ['기수', 'cohort'].includes(h)),
       instrument: headers.findIndex(h => ['악기', 'instrument'].includes(h)),
+      is_active:  headers.findIndex(h => ['활성여부', 'is_active'].includes(h)),
     }
 
     const roleMap: Record<string, string> = {
@@ -271,6 +273,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       const role       = roleMap[rawRole] || 'student'
       const cohort     = get(idx.cohort)
       const instrument = get(idx.instrument)
+      const rawActive  = get(idx.is_active)
+      const is_active  = rawActive === '비활성' ? false : true
 
       const errors: string[] = []
       if (!name)  errors.push('이름 필수')
@@ -278,7 +282,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('이메일 형식 오류')
       if (password.length < 6) errors.push('비밀번호 6자 이상')
 
-      return { rowNum: i + 2, name, email, password, role, cohort, instrument, errors }
+      return { rowNum: i + 2, name, email, password, role, cohort, instrument, is_active, errors }
     }).filter(row => row.name || row.email)
   }
 
@@ -518,7 +522,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
   const handleExportCSV = () => {
     try {
-      const headers = ['이름', '이메일', '권한', '기수', '악기', '소속반', '가입일', '생년월일', '학년', '연락처', '보호자', '보호자 연락처', '주소', '비고']
+      const headers = ['이름', '이메일', '권한', '기수', '악기', '소속반', '가입일', '활성여부', '생년월일', '학년', '연락처', '보호자', '보호자 연락처', '주소', '비고']
       const rows = filteredUsers.map(u => {
         const className = u.class_id
           ? allClassData.find(c => c.id === u.class_id)?.name || u.class_id
@@ -529,6 +533,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
           u.instrument || '-',
           className || '-',
           new Date(u.created_at).toLocaleDateString('ko-KR'),
+          u.is_active === false ? '비활성' : '활성',
           formatDate(u.birth_date),
           u.grade          || '-',
           u.phone          || '-',
@@ -553,10 +558,10 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   // ── 샘플 CSV 다운로드 ──
   const downloadSampleCSV = () => {
     const sample = [
-      '이름,이메일,비밀번호,역할,기수,악기',
-      '홍길동,hong@sangsang.local,sangsang1234!,학생,4,바이올린',
-      '김철수,kim@sangsang.local,sangsang1234!,학생,4,첼로',
-      '이선생,lee@sangsang.local,sangsang1234!,선생님,,',
+      '이름,이메일,비밀번호,역할,기수,악기,활성여부',
+      '홍길동,hong@sangsang.local,sangsang1234!,학생,4,바이올린,활성',
+      '김철수,kim@sangsang.local,sangsang1234!,학생,4,첼로,활성',
+      '이선생,lee@sangsang.local,sangsang1234!,선생님,,,활성',
     ].join('\n')
     const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8;' })
     const url  = URL.createObjectURL(blob)
@@ -603,6 +608,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
             role:       row.role,
             cohort:     row.cohort ? Number(row.cohort) : null,
             instrument: row.instrument || null,
+            is_active:  row.is_active,
           }),
         })
         const data = await res.json()
@@ -1052,7 +1058,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                   <table className={styles.importTable}>
                     <thead>
                       <tr>
-                        <th>행</th><th>이름</th><th>이메일</th><th>역할</th><th>기수</th><th>악기</th><th>상태</th>
+                        <th>행</th><th>이름</th><th>이메일</th><th>역할</th><th>기수</th><th>악기</th><th>활성여부</th><th>상태</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1064,6 +1070,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                           <td>{roleLabels[row.role] || row.role}</td>
                           <td>{row.cohort ? `${row.cohort}기` : '-'}</td>
                           <td>{row.instrument || '-'}</td>
+                          <td>
+                            <span className={row.is_active ? styles.importOkBadge : styles.importInactiveBadge}>
+                              {row.is_active ? '활성' : '비활성'}
+                            </span>
+                          </td>
                           <td>
                             {row.errors.length > 0
                               ? <span className={styles.importErrBadge}>{row.errors.join(', ')}</span>

@@ -12,7 +12,7 @@ const supabaseAdmin = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name, role, cohort, instrument } = body;
+    const { email, password, name, role, cohort, instrument, is_active } = body;
 
     // 1. 수파베이스 Auth에 계정 생성
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
     if (authError) throw authError;
 
-    // 2. public.users 테이블에 상세 정보(기수, 악기 포함) 저장
+    // 2. public.users 테이블에 상세 정보 저장
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .upsert({
@@ -31,8 +31,9 @@ export async function POST(request: Request) {
         email: email,
         name: name,
         role: role || 'student',
-        cohort: cohort ? Number(cohort) : null,       // [추가] 숫자형으로 변환하여 저장
-        instrument: instrument ? instrument.trim() : null // [추가] 악기명 저장
+        cohort: cohort ? Number(cohort) : null,
+        instrument: instrument ? instrument.trim() : null,
+        is_active: is_active !== false,
       })
       .select()
       .single();
