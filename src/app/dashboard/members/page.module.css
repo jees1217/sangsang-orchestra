@@ -457,6 +457,145 @@
 }
 .classModalSelect:focus { border-color: #00A99D; }
 
+/* ===== 클래스 관리 모달 ===== */
+.classManageModal {
+  background: white;
+  border-radius: 20px;
+  padding: 36px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.15);
+  animation: modalIn 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 목록 */
+.classManageList {
+  border: 1px solid #E6F0EF;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.classManageHeader {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  background: #F0F8F7;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5A6B7D;
+  gap: 8px;
+}
+.cmhName    { flex: 1; }
+.cmhTeacher { width: 100px; }
+.cmhActions { width: 100px; text-align: right; }
+
+.classManageEmpty {
+  padding: 24px;
+  text-align: center;
+  color: #a0aec0;
+  font-size: 14px;
+}
+
+.classManageRow {
+  display: flex;
+  align-items: center;
+  padding: 11px 16px;
+  border-top: 1px solid #F0F4F3;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.classManageRow:hover { background: #F8FFFE; }
+
+.cmRowName    { flex: 1; font-size: 14px; font-weight: 600; color: #253243; }
+.cmRowTeacher { width: 100px; font-size: 12px; color: #718096; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmRowActions { width: 100px; display: flex; gap: 6px; justify-content: flex-end; flex-shrink: 0; }
+
+/* 인라인 수정 입력 */
+.classEditInput {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1.5px solid #00A99D;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: var(--font-main, 'Noto Sans KR', sans-serif);
+  outline: none;
+}
+
+/* 목록 내 버튼들 */
+.cmEditBtn {
+  padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: white; border: 1.5px solid #00A99D; color: #00A99D;
+  font-family: inherit; transition: background 0.15s; white-space: nowrap;
+}
+.cmEditBtn:hover { background: #E6F7F6; }
+
+.cmDeleteBtn {
+  padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: white; border: 1.5px solid #FCA5A5; color: #DC2626;
+  font-family: inherit; transition: background 0.15s; white-space: nowrap;
+}
+.cmDeleteBtn:hover { background: #FEF2F2; }
+
+.cmSaveBtn {
+  padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer;
+  background: #00A99D; border: none; color: white;
+  font-family: inherit; transition: background 0.15s; white-space: nowrap;
+}
+.cmSaveBtn:hover:not(:disabled) { background: #008F84; }
+.cmSaveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cmCancelBtn {
+  padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer;
+  background: white; border: 1.5px solid #D1D9E0; color: #5A6B7D;
+  font-family: inherit; transition: background 0.15s; white-space: nowrap;
+}
+.cmCancelBtn:hover { background: #F1F5F9; }
+
+/* 새 반 추가 폼 */
+.classCreateSection {
+  border: 1.5px dashed #B2DFDB;
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: #F0F8F7;
+}
+.classCreateTitle {
+  font-size: 14px; font-weight: 700; color: #00A99D; margin-bottom: 12px;
+}
+.classCreateForm {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+.classCreateInput {
+  flex: 1; min-width: 160px; padding: 9px 12px;
+  border: 1.5px solid #D1D9E0; border-radius: 10px;
+  font-size: 14px; font-family: inherit; outline: none;
+  transition: border-color 0.2s;
+}
+.classCreateInput:focus { border-color: #00A99D; }
+
+.classCreateSelect {
+  min-width: 130px; padding: 9px 12px;
+  border: 1.5px solid #D1D9E0; border-radius: 10px;
+  font-size: 14px; font-family: inherit; outline: none; background: white;
+  transition: border-color 0.2s;
+}
+.classCreateSelect:focus { border-color: #00A99D; }
+
+.classCreateBtn {
+  padding: 9px 18px; background: #00A99D; color: white;
+  border: none; border-radius: 10px; font-size: 14px; font-weight: 700;
+  font-family: inherit; cursor: pointer; white-space: nowrap;
+  transition: background 0.15s;
+}
+.classCreateBtn:hover:not(:disabled) { background: #008F84; }
+.classCreateBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.classCreateWarn { font-size: 12px; color: #E53E3E; margin: 8px 0 0; }
+
 /* ===== 모바일 (768px 이하) ===== */
 @media (max-width: 768px) {
   .container {

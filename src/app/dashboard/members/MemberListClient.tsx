@@ -17,7 +17,8 @@ type User = {
 
 interface ClassRow {
   id: string
-  name: string
+  name: string | null
+  teacher_id: string | null
   professor_id: string | null
   instructor_id: string | null
 }
@@ -33,10 +34,7 @@ interface MemberListClientProps {
 }
 
 const roleLabels: Record<string, string> = {
-  admin: '관리자',
-  director: '디렉터',
-  teacher: '선생님',
-  student: '학생',
+  admin: '관리자', director: '디렉터', teacher: '선생님', student: '학생',
 }
 
 export default function MemberListClient({ initialUsers }: MemberListClientProps) {
@@ -45,11 +43,11 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const [feedback, setFeedback]   = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   // 검색/필터
-  const [searchTerm, setSearchTerm]               = useState('')
-  const [filterRole, setFilterRole]               = useState('all')
-  const [filterCohort, setFilterCohort]           = useState('all')
-  const [filterInstrument, setFilterInstrument]   = useState('all')
-  const [filterClass, setFilterClass]             = useState('all')
+  const [searchTerm, setSearchTerm]             = useState('')
+  const [filterRole, setFilterRole]             = useState('all')
+  const [filterCohort, setFilterCohort]         = useState('all')
+  const [filterInstrument, setFilterInstrument] = useState('all')
+  const [filterClass, setFilterClass]           = useState('all')
 
   // 단원 추가 모달
   const [isModalOpen, setIsModalOpen]   = useState(false)
@@ -60,11 +58,18 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const [allClassData, setAllClassData]       = useState<ClassRow[]>([])
   const [teacherClassMap, setTeacherClassMap] = useState<Record<string, TeacherClassItem[]>>({})
 
-  // 반 생성 모달
-  const [classCreateOpen, setClassCreateOpen]       = useState(false)
-  const [classCreateName, setClassCreateName]       = useState('')
-  const [classCreateTeacherId, setClassCreateTeacherId] = useState('')
-  const [classCreateSaving, setClassCreateSaving]   = useState(false)
+  // 클래스 관리 모달
+  const [classManageOpen, setClassManageOpen] = useState(false)
+
+  // 새 반 추가 (관리 모달 내부)
+  const [createName, setCreateName]           = useState('')
+  const [createTeacherId, setCreateTeacherId] = useState('')
+  const [createSaving, setCreateSaving]       = useState(false)
+
+  // 반 이름 수정 (인라인)
+  const [editingId, setEditingId]     = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [editSaving, setEditSaving]   = useState(false)
 
   // 교사 반 배정 모달
   const [classModalOpen, setClassModalOpen]       = useState(false)
@@ -79,7 +84,7 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, professor_id, instructor_id')
+      .select('id, name, teacher_id, professor_id, instructor_id')
       .order('name')
     const rows = (data || []) as ClassRow[]
     setAllClassData(rows)
@@ -89,13 +94,14 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const buildTeacherClassMap = (rows: ClassRow[]) => {
     const map: Record<string, TeacherClassItem[]> = {}
     rows.forEach(c => {
+      const label = c.name || '(이름 없음)'
       if (c.professor_id) {
         if (!map[c.professor_id]) map[c.professor_id] = []
-        map[c.professor_id].push({ classId: c.id, className: c.name, role: 'professor' })
+        map[c.professor_id].push({ classId: c.id, className: label, role: 'professor' })
       }
       if (c.instructor_id) {
         if (!map[c.instructor_id]) map[c.instructor_id] = []
-        map[c.instructor_id].push({ classId: c.id, className: c.name, role: 'instructor' })
+        map[c.instructor_id].push({ classId: c.id, className: label, role: 'instructor' })
       }
     })
     setTeacherClassMap(map)
@@ -106,6 +112,13 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
     setTimeout(() => setFeedback(null), 3000)
   }
 
+  const teachers = useMemo(() => users.filter(u => u.role === 'teacher'), [users])
+
+  const getTeacherName = (teacherId: string | null) => {
+    if (!teacherId) return '미배정'
+    return users.find(u => u.id === teacherId)?.name ?? '알 수 없음'
+  }
+
   // ── 필터링 ──
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -113,17 +126,11 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
       const matchRole       = filterRole === 'all' || user.role === filterRole
       const matchCohort     = filterCohort === 'all' || (user.cohort?.toString() || 'none') === filterCohort
       const matchInstrument = filterInstrument === 'all' || (user.instrument || 'none') === filterInstrument
-
       let matchClass = true
       if (filterClass !== 'all') {
-        if (user.role === 'student') {
-          matchClass = user.class_id === filterClass
-        } else if (user.role === 'teacher') {
-          matchClass = (teacherClassMap[user.id] || []).some(tc => tc.classId === filterClass)
-        }
-        // admin/director는 반 필터와 무관하게 표시
+        if (user.role === 'student')      matchClass = user.class_id === filterClass
+        else if (user.role === 'teacher') matchClass = (teacherClassMap[user.id] || []).some(tc => tc.classId === filterClass)
       }
-
       return matchSearch && matchRole && matchCohort && matchInstrument && matchClass
     })
   }, [users, searchTerm, filterRole, filterCohort, filterInstrument, filterClass, teacherClassMap])
@@ -131,33 +138,71 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   // ── 반 생성 ──
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
-    const trimmed = classCreateName.trim()
-    if (!trimmed || !classCreateTeacherId) return
-    setClassCreateSaving(true)
+    const trimmed = createName.trim()
+    if (!trimmed || !createTeacherId) return
+    setCreateSaving(true)
     try {
       const { data, error } = await supabase
         .from('classes')
-        .insert({ name: trimmed, teacher_id: classCreateTeacherId })
-        .select('id, name, professor_id, instructor_id')
+        .insert({ name: trimmed, teacher_id: createTeacherId })
+        .select('id, name, teacher_id, professor_id, instructor_id')
         .single()
       if (error) throw error
       const newRow = data as ClassRow
-      setAllClassData(prev => [...prev, newRow].sort((a, b) => a.name.localeCompare(b.name, 'ko')))
-      setClassCreateName('')
-      setClassCreateTeacherId('')
-      setClassCreateOpen(false)
+      setAllClassData(prev => [...prev, newRow].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')))
+      setCreateName('')
+      setCreateTeacherId('')
       showFeedback(`'${newRow.name}' 반이 생성되었습니다.`, 'success')
     } catch (err: any) {
       showFeedback(`반 생성 실패: ${err.message}`, 'error')
     } finally {
-      setClassCreateSaving(false)
+      setCreateSaving(false)
+    }
+  }
+
+  // ── 반 이름 수정 ──
+  const handleUpdateClassName = async (classId: string) => {
+    const trimmed = editingName.trim()
+    if (!trimmed) return
+    setEditSaving(true)
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .update({ name: trimmed })
+        .eq('id', classId)
+      if (error) throw error
+      setAllClassData(prev =>
+        prev.map(c => c.id === classId ? { ...c, name: trimmed } : c)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'))
+      )
+      buildTeacherClassMap(allClassData.map(c => c.id === classId ? { ...c, name: trimmed } : c))
+      setEditingId(null)
+      showFeedback('반 이름이 수정되었습니다.', 'success')
+    } catch (err: any) {
+      showFeedback(`수정 실패: ${err.message}`, 'error')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  // ── 반 삭제 ──
+  const handleDeleteClass = async (classId: string, className: string) => {
+    if (!window.confirm(`'${className}' 반을 삭제하시겠습니까?\n소속 학생들의 반 배정이 해제됩니다.`)) return
+    try {
+      const { error } = await supabase.from('classes').delete().eq('id', classId)
+      if (error) throw error
+      setAllClassData(prev => prev.filter(c => c.id !== classId))
+      buildTeacherClassMap(allClassData.filter(c => c.id !== classId))
+      if (filterClass === classId) setFilterClass('all')
+      showFeedback(`'${className}' 반이 삭제되었습니다.`, 'success')
+    } catch (err: any) {
+      showFeedback(`삭제 실패: ${err.message}`, 'error')
     }
   }
 
   // ── 권한 변경 ──
   const handleRoleChange = async (userId: string, newRole: string) => {
     setLoadingId(userId)
-    setFeedback(null)
     const { error } = await supabase.from('users').update({ role: newRole }).eq('id', userId)
     if (error) {
       showFeedback(`권한 변경 실패: ${error.message}`, 'error')
@@ -205,7 +250,6 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
         const wasInst = c.instructor_id === classModalTeacher.id
         const oldRole = wasProf ? 'professor' : wasInst ? 'instructor' : 'none'
         if (newRole === oldRole) continue
-
         const updates: Partial<{ professor_id: string | null; instructor_id: string | null }> = {}
         if (newRole === 'professor') {
           updates.professor_id = classModalTeacher.id
@@ -234,7 +278,6 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const handleDelete = async (userId: string, name: string) => {
     if (!window.confirm(`정말 ${name} 단원을 명부에서 삭제하시겠습니까?\n(이 작업은 되돌릴 수 없습니다)`)) return
     setLoadingId(userId)
-    setFeedback(null)
     try {
       const res  = await fetch(`/api/users?id=${userId}`, { method: 'DELETE' })
       const data = await res.json()
@@ -252,7 +295,6 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setFeedback(null)
     try {
       const payload = {
         ...newMember,
@@ -275,11 +317,11 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
 
   // ── 비밀번호 초기화 ──
   const handleResetPassword = async (userId: string) => {
-    const newPassword = window.prompt('새로운 임시 비밀번호를 입력하세요 (최소 6자리):', 'sangsang1234!')
-    if (!newPassword || newPassword.trim() === '') return
-    if (newPassword.length < 6) return alert('비밀번호는 최소 6자리 이상이어야 합니다.')
+    const pw = window.prompt('새로운 임시 비밀번호를 입력하세요 (최소 6자리):', 'sangsang1234!')
+    if (!pw || pw.trim() === '') return
+    if (pw.length < 6) return alert('비밀번호는 최소 6자리 이상이어야 합니다.')
     try {
-      const res  = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: userId, password: newPassword }) })
+      const res  = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: userId, password: pw }) })
       const data = await res.json()
       if (res.ok) alert('비밀번호가 초기화되었습니다.')
       else        alert(`초기화 실패: ${data.error || '알 수 없는 에러'}`)
@@ -296,23 +338,14 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
         const className = u.class_id
           ? allClassData.find(c => c.id === u.class_id)?.name || u.class_id
           : '-'
-        return [
-          u.name, u.email,
-          roleLabels[u.role] || u.role,
-          u.cohort ? `${u.cohort}기` : '-',
-          u.instrument || '-',
-          className,
-          new Date(u.created_at).toLocaleDateString('ko-KR'),
-        ]
+        return [u.name, u.email, roleLabels[u.role] || u.role, u.cohort ? `${u.cohort}기` : '-', u.instrument || '-', className || '-', new Date(u.created_at).toLocaleDateString('ko-KR')]
       })
       const csv  = [headers.join(','), ...rows.map(r => r.map(cell => `"${cell}"`).join(','))].join('\n')
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
       const url  = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `단원명부_${new Date().toISOString().slice(0, 10)}.csv`)
-      document.body.appendChild(link); link.click()
-      document.body.removeChild(link); URL.revokeObjectURL(url)
+      link.href = url; link.setAttribute('download', `단원명부_${new Date().toISOString().slice(0, 10)}.csv`)
+      document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url)
       showFeedback('CSV 다운로드가 시작되었습니다.', 'success')
     } catch {
       showFeedback('CSV 다운로드 중 오류가 발생했습니다.', 'error')
@@ -321,25 +354,19 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
 
   const getRoleBadgeClass = (role: string) => {
     switch (role.toLowerCase()) {
-      case 'admin':    return styles.adminBadge
-      case 'director': return styles.directorBadge
-      case 'teacher':  return styles.teacherBadge
-      default:         return styles.studentBadge
+      case 'admin': return styles.adminBadge; case 'director': return styles.directorBadge
+      case 'teacher': return styles.teacherBadge; default: return styles.studentBadge
     }
   }
 
-  // ── 소속반 셀 렌더링 ──
+  // ── 소속반 셀 ──
   const renderClassCell = (u: User) => {
     if (u.role === 'student') {
       return (
-        <select
-          value={u.class_id || ''}
-          onChange={e => handleStudentClassChange(u.id, e.target.value || null)}
-          className={styles.classSelect}
-          disabled={loadingId === u.id}
-        >
+        <select value={u.class_id || ''} onChange={e => handleStudentClassChange(u.id, e.target.value || null)}
+          className={styles.classSelect} disabled={loadingId === u.id}>
           <option value="">미배정</option>
-          {allClassData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {allClassData.filter(c => c.name).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       )
     }
@@ -370,52 +397,37 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
           <button className={styles.primaryBtn} onClick={() => setIsModalOpen(true)}>
             <span style={{ fontSize: '16px' }}>+</span> 단원 추가
           </button>
-          <button className={styles.secondaryBtn} onClick={() => setClassCreateOpen(true)}>
-            <span style={{ fontSize: '16px' }}>+</span> 클래스(반) 생성
+          <button className={styles.secondaryBtn} onClick={() => setClassManageOpen(true)}>
+            🏫 클래스 관리
           </button>
           <button className={styles.secondaryBtn} onClick={handleExportCSV}>
-            <span>⬇️</span> 명부 다운로드 (CSV)
+            ⬇️ 명부 다운로드 (CSV)
           </button>
         </div>
       </div>
 
       {/* ── 검색 / 필터 바 ── */}
       <div className={styles.filterBar}>
-        <input
-          type="text"
-          placeholder="이름 또는 이메일 검색..."
-          className={styles.searchInput}
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-        />
+        <input type="text" placeholder="이름 또는 이메일 검색..." className={styles.searchInput}
+          value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         <select className={styles.filterSelect} value={filterRole}       onChange={e => setFilterRole(e.target.value)}>
-          <option value="all">모든 권한</option>
-          <option value="student">학생만</option>
-          <option value="teacher">선생님만</option>
-          <option value="director">디렉터만</option>
+          <option value="all">모든 권한</option><option value="student">학생만</option>
+          <option value="teacher">선생님만</option><option value="director">디렉터만</option>
           <option value="admin">관리자만</option>
         </select>
         <select className={styles.filterSelect} value={filterCohort}     onChange={e => setFilterCohort(e.target.value)}>
-          <option value="all">모든 기수</option>
-          <option value="1">1기</option>
-          <option value="2">2기</option>
-          <option value="3">3기</option>
-          <option value="4">4기</option>
-          <option value="none">기수 없음</option>
+          <option value="all">모든 기수</option><option value="1">1기</option><option value="2">2기</option>
+          <option value="3">3기</option><option value="4">4기</option><option value="none">기수 없음</option>
         </select>
         <select className={styles.filterSelect} value={filterInstrument} onChange={e => setFilterInstrument(e.target.value)}>
-          <option value="all">모든 악기</option>
-          <option value="바이올린">바이올린</option>
-          <option value="비올라">비올라</option>
-          <option value="첼로">첼로</option>
-          <option value="콘트라베이스">콘트라베이스</option>
-          <option value="플루트">플루트</option>
-          <option value="클라리넷">클라리넷</option>
-          <option value="none">악기 없음</option>
+          <option value="all">모든 악기</option><option value="바이올린">바이올린</option>
+          <option value="비올라">비올라</option><option value="첼로">첼로</option>
+          <option value="콘트라베이스">콘트라베이스</option><option value="플루트">플루트</option>
+          <option value="클라리넷">클라리넷</option><option value="none">악기 없음</option>
         </select>
         <select className={styles.filterSelect} value={filterClass}      onChange={e => setFilterClass(e.target.value)}>
           <option value="all">전체 반</option>
-          {allClassData.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {allClassData.filter(c => c.name).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
 
@@ -436,13 +448,8 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>이름</th>
-              <th>이메일</th>
-              <th>권한</th>
-              <th>기수</th>
-              <th>악기</th>
-              <th>소속반 / 담당반</th>
-              <th>가입일</th>
+              <th>이름</th><th>이메일</th><th>권한</th><th>기수</th>
+              <th>악기</th><th>소속반 / 담당반</th><th>가입일</th>
               <th style={{ textAlign: 'center' }}>관리</th>
             </tr>
           </thead>
@@ -452,16 +459,10 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
                 <td style={{ fontWeight: 600 }}>{u.name}</td>
                 <td>{u.email}</td>
                 <td>
-                  <select
-                    value={u.role.toLowerCase()}
-                    onChange={e => handleRoleChange(u.id, e.target.value)}
-                    disabled={loadingId === u.id}
-                    className={`${styles.roleSelect} ${getRoleBadgeClass(u.role)}`}
-                  >
-                    <option value="admin">관리자</option>
-                    <option value="director">디렉터</option>
-                    <option value="teacher">선생님</option>
-                    <option value="student">학생</option>
+                  <select value={u.role.toLowerCase()} onChange={e => handleRoleChange(u.id, e.target.value)}
+                    disabled={loadingId === u.id} className={`${styles.roleSelect} ${getRoleBadgeClass(u.role)}`}>
+                    <option value="admin">관리자</option><option value="director">디렉터</option>
+                    <option value="teacher">선생님</option><option value="student">학생</option>
                   </select>
                   {loadingId === u.id && <span style={{ marginLeft: 8, fontSize: 12 }}>⏳</span>}
                 </td>
@@ -471,22 +472,13 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
                 <td>{new Date(u.created_at).toLocaleDateString('ko-KR')}</td>
                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                   <button className={styles.deleteBtn} style={{ color: '#0ea5e9', marginRight: '4px' }}
-                    onClick={() => handleResetPassword(u.id)} disabled={loadingId === u.id}>
-                    비번 초기화
-                  </button>
-                  <button className={styles.deleteBtn}
-                    onClick={() => handleDelete(u.id, u.name)} disabled={loadingId === u.id}>
-                    삭제
-                  </button>
+                    onClick={() => handleResetPassword(u.id)} disabled={loadingId === u.id}>비번 초기화</button>
+                  <button className={styles.deleteBtn} onClick={() => handleDelete(u.id, u.name)} disabled={loadingId === u.id}>삭제</button>
                 </td>
               </tr>
             ))}
             {filteredUsers.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-                  조건에 맞는 단원이 없습니다.
-                </td>
-              </tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>조건에 맞는 단원이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
@@ -498,113 +490,115 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
           <div className={styles.modal} onClick={e => e.stopPropagation()}>
             <h2 className={styles.modalTitle}>새 단원 추가</h2>
             <form onSubmit={handleCreateUser}>
-              <div className={styles.formGroup}>
-                <label>이메일</label>
-                <input type="email" required placeholder="example@email.com"
-                  value={newMember.email} onChange={e => setNewMember({ ...newMember, email: e.target.value })} />
-              </div>
-              <div className={styles.formGroup}>
-                <label>비밀번호 (초기)</label>
-                <input type="password" required minLength={6} placeholder="최소 6자리 이상"
-                  value={newMember.password} onChange={e => setNewMember({ ...newMember, password: e.target.value })} />
-              </div>
-              <div className={styles.formGroup}>
-                <label>이름 (실명)</label>
-                <input type="text" required placeholder="홍길동"
-                  value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} />
-              </div>
-              <div className={styles.formGroup}>
-                <label>기수</label>
+              <div className={styles.formGroup}><label>이메일</label>
+                <input type="email" required placeholder="example@email.com" value={newMember.email} onChange={e => setNewMember({ ...newMember, email: e.target.value })} /></div>
+              <div className={styles.formGroup}><label>비밀번호 (초기)</label>
+                <input type="password" required minLength={6} placeholder="최소 6자리 이상" value={newMember.password} onChange={e => setNewMember({ ...newMember, password: e.target.value })} /></div>
+              <div className={styles.formGroup}><label>이름 (실명)</label>
+                <input type="text" required placeholder="홍길동" value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })} /></div>
+              <div className={styles.formGroup}><label>기수</label>
                 <select value={newMember.cohort} onChange={e => setNewMember({ ...newMember, cohort: e.target.value })}>
-                  <option value="">선택 안 함</option>
-                  <option value="1">1기</option>
-                  <option value="2">2기</option>
-                  <option value="3">3기</option>
-                  <option value="4">4기</option>
-                </select>
-              </div>
-              <div className={styles.formGroup}>
-                <label>악기 파트</label>
+                  <option value="">선택 안 함</option><option value="1">1기</option><option value="2">2기</option>
+                  <option value="3">3기</option><option value="4">4기</option></select></div>
+              <div className={styles.formGroup}><label>악기 파트</label>
                 <select value={newMember.instrument} onChange={e => setNewMember({ ...newMember, instrument: e.target.value })}>
-                  <option value="">선택 안 함</option>
-                  <option value="바이올린">바이올린</option>
-                  <option value="비올라">비올라</option>
-                  <option value="첼로">첼로</option>
-                  <option value="콘트라베이스">콘트라베이스</option>
-                  <option value="플루트">플루트</option>
-                  <option value="클라리넷">클라리넷</option>
-                </select>
-              </div>
-              <div className={styles.formGroup}>
-                <label>권한</label>
+                  <option value="">선택 안 함</option><option value="바이올린">바이올린</option>
+                  <option value="비올라">비올라</option><option value="첼로">첼로</option>
+                  <option value="콘트라베이스">콘트라베이스</option><option value="플루트">플루트</option>
+                  <option value="클라리넷">클라리넷</option></select></div>
+              <div className={styles.formGroup}><label>권한</label>
                 <select value={newMember.role} onChange={e => setNewMember({ ...newMember, role: e.target.value })}>
-                  <option value="student">학생 (Student)</option>
-                  <option value="teacher">선생님 (Teacher)</option>
-                  <option value="director">디렉터 (Director)</option>
-                  <option value="admin">관리자 (Admin)</option>
-                </select>
-              </div>
+                  <option value="student">학생 (Student)</option><option value="teacher">선생님 (Teacher)</option>
+                  <option value="director">디렉터 (Director)</option><option value="admin">관리자 (Admin)</option></select></div>
               <div className={styles.modalActions}>
                 <button type="button" className={styles.secondaryBtn} onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>취소</button>
-                <button type="submit"  className={styles.primaryBtn}   disabled={isSubmitting} style={{ justifyContent: 'center' }}>
-                  {isSubmitting ? '저장 중...' : '저장하기'}
-                </button>
+                <button type="submit" className={styles.primaryBtn} disabled={isSubmitting} style={{ justifyContent: 'center' }}>
+                  {isSubmitting ? '저장 중...' : '저장하기'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ── 클래스(반) 생성 모달 ── */}
-      {classCreateOpen && (
-        <div className={styles.modalOverlay} onClick={() => { setClassCreateOpen(false); setClassCreateName(''); setClassCreateTeacherId('') }}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <h2 className={styles.modalTitle}>클래스(반) 생성</h2>
-            <form onSubmit={handleCreateClass}>
-              <div className={styles.formGroup}>
-                <label>반 이름</label>
+      {/* ── 클래스 관리 모달 ── */}
+      {classManageOpen && (
+        <div className={styles.modalOverlay} onClick={() => setClassManageOpen(false)}>
+          <div className={styles.classManageModal} onClick={e => e.stopPropagation()}>
+            <h2 className={styles.modalTitle}>🏫 클래스 관리</h2>
+
+            {/* 클래스 목록 */}
+            <div className={styles.classManageList}>
+              <div className={styles.classManageHeader}>
+                <span className={styles.cmhName}>반 이름</span>
+                <span className={styles.cmhTeacher}>담당 선생님</span>
+                <span className={styles.cmhActions}>관리</span>
+              </div>
+
+              {allClassData.length === 0 ? (
+                <div className={styles.classManageEmpty}>아직 생성된 반이 없습니다.</div>
+              ) : (
+                allClassData.map(c => (
+                  <div key={c.id} className={styles.classManageRow}>
+                    {editingId === c.id ? (
+                      /* 수정 모드 */
+                      <>
+                        <input
+                          className={styles.classEditInput}
+                          value={editingName}
+                          onChange={e => setEditingName(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleUpdateClassName(c.id); if (e.key === 'Escape') setEditingId(null) }}
+                          autoFocus
+                        />
+                        <div className={styles.cmRowActions}>
+                          <button className={styles.cmSaveBtn} onClick={() => handleUpdateClassName(c.id)} disabled={editSaving || !editingName.trim()}>
+                            {editSaving ? '…' : '저장'}
+                          </button>
+                          <button className={styles.cmCancelBtn} onClick={() => setEditingId(null)} disabled={editSaving}>취소</button>
+                        </div>
+                      </>
+                    ) : (
+                      /* 표시 모드 */
+                      <>
+                        <span className={styles.cmRowName}>{c.name || '(이름 없음)'}</span>
+                        <span className={styles.cmRowTeacher}>{getTeacherName(c.teacher_id)}</span>
+                        <div className={styles.cmRowActions}>
+                          <button className={styles.cmEditBtn} onClick={() => { setEditingId(c.id); setEditingName(c.name || '') }}>수정</button>
+                          <button className={styles.cmDeleteBtn} onClick={() => handleDeleteClass(c.id, c.name || '반')}>삭제</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* 새 반 추가 폼 */}
+            <div className={styles.classCreateSection}>
+              <div className={styles.classCreateTitle}>+ 새 반 추가</div>
+              <form onSubmit={handleCreateClass} className={styles.classCreateForm}>
                 <input
-                  type="text"
-                  required
-                  autoFocus
-                  placeholder="예: 1반, 바이올린 A반, 2025 봄학기반"
-                  value={classCreateName}
-                  onChange={e => setClassCreateName(e.target.value)}
+                  type="text" required placeholder="반 이름 입력 (예: 바이올린 A반)"
+                  value={createName} onChange={e => setCreateName(e.target.value)}
+                  className={styles.classCreateInput}
                 />
-              </div>
-              <div className={styles.formGroup}>
-                <label>담당 선생님</label>
-                {users.filter(u => u.role === 'teacher').length === 0 ? (
-                  <p style={{ fontSize: 13, color: '#e53e3e', margin: '4px 0 0' }}>
-                    등록된 선생님이 없습니다. 먼저 선생님 계정을 추가해 주세요.
-                  </p>
-                ) : (
-                  <select
-                    required
-                    value={classCreateTeacherId}
-                    onChange={e => setClassCreateTeacherId(e.target.value)}
-                  >
-                    <option value="">선택하세요</option>
-                    {users
-                      .filter(u => u.role === 'teacher')
-                      .map(t => <option key={t.id} value={t.id}>{t.name}</option>)
-                    }
-                  </select>
-                )}
-              </div>
-              <div className={styles.modalActions}>
-                <button type="button" className={styles.secondaryBtn}
-                  onClick={() => { setClassCreateOpen(false); setClassCreateName(''); setClassCreateTeacherId('') }}
-                  disabled={classCreateSaving}>
-                  취소
+                <select required value={createTeacherId} onChange={e => setCreateTeacherId(e.target.value)}
+                  className={styles.classCreateSelect}>
+                  <option value="">담당 선생님 선택</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button type="submit" className={styles.classCreateBtn}
+                  disabled={createSaving || !createName.trim() || !createTeacherId}>
+                  {createSaving ? '생성 중...' : '생성'}
                 </button>
-                <button type="submit" className={styles.primaryBtn}
-                  disabled={classCreateSaving || !classCreateName.trim() || !classCreateTeacherId}
-                  style={{ justifyContent: 'center' }}>
-                  {classCreateSaving ? '생성 중...' : '생성하기'}
-                </button>
-              </div>
-            </form>
+              </form>
+              {teachers.length === 0 && (
+                <p className={styles.classCreateWarn}>선생님 계정을 먼저 추가해 주세요.</p>
+              )}
+            </div>
+
+            <div className={styles.modalActions} style={{ marginTop: 0 }}>
+              <button className={styles.primaryBtn} onClick={() => setClassManageOpen(false)} style={{ justifyContent: 'center' }}>닫기</button>
+            </div>
           </div>
         </div>
       )}
@@ -614,26 +608,20 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
         <div className={styles.modalOverlay} onClick={() => setClassModalOpen(false)}>
           <div className={styles.classModal} onClick={e => e.stopPropagation()}>
             <h2 className={styles.modalTitle}>👩‍🏫 {classModalTeacher.name} 선생님 반 배정</h2>
-            <p className={styles.classModalSubtitle}>
-              각 반에서의 역할을 선택하세요. 담당교수(주강사) 또는 보조강사로 배정할 수 있습니다.
-            </p>
+            <p className={styles.classModalSubtitle}>각 반에서의 역할을 선택하세요.</p>
             {allClassData.length === 0 ? (
               <div style={{ color: '#a0aec0', textAlign: 'center', padding: '20px 0' }}>
-                등록된 반이 없습니다. 먼저 클래스(반)을 생성해 주세요.
+                등록된 반이 없습니다. 클래스 관리에서 반을 생성해 주세요.
               </div>
             ) : (
               <div className={styles.classModalList}>
-                <div className={styles.classModalHeader}>
-                  <span>반 이름</span><span>역할</span>
-                </div>
+                <div className={styles.classModalHeader}><span>반 이름</span><span>역할</span></div>
                 {allClassData.map(c => (
                   <div key={c.id} className={styles.classModalRow}>
                     <span className={styles.classModalName}>{c.name}</span>
-                    <select
-                      value={classModalPending[c.id] ?? 'none'}
+                    <select value={classModalPending[c.id] ?? 'none'}
                       onChange={e => setClassModalPending(prev => ({ ...prev, [c.id]: e.target.value as 'professor' | 'instructor' | 'none' }))}
-                      className={styles.classModalSelect}
-                    >
+                      className={styles.classModalSelect}>
                       <option value="none">미배정</option>
                       <option value="professor">담당교수 (주강사)</option>
                       <option value="instructor">보조강사</option>
@@ -644,9 +632,8 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
             )}
             <div className={styles.modalActions}>
               <button type="button" className={styles.secondaryBtn} onClick={() => setClassModalOpen(false)} disabled={classModalSaving}>취소</button>
-              <button type="button" className={styles.primaryBtn}   onClick={handleSaveTeacherAssignments} disabled={classModalSaving} style={{ justifyContent: 'center' }}>
-                {classModalSaving ? '저장 중...' : '저장하기'}
-              </button>
+              <button type="button" className={styles.primaryBtn} onClick={handleSaveTeacherAssignments} disabled={classModalSaving} style={{ justifyContent: 'center' }}>
+                {classModalSaving ? '저장 중...' : '저장하기'}</button>
             </div>
           </div>
         </div>
