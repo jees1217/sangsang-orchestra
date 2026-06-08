@@ -5,14 +5,12 @@ import styles from './page.module.css'
 
 import MemberListClient from './MemberListClient'
 
-// 데이터 패칭을 담당하는 서버 컴포넌트
-async function MembersTableLoader() {
+async function MembersTableLoader({ viewerRole }: { viewerRole: string }) {
   const supabase = await createClient()
 
-  // [수정됨] 유저 목록 가져올 때 cohort(기수), instrument(악기) 추가
   const { data: users, error } = await supabase
     .from('users')
-    .select('id, email, name, role, cohort, instrument, created_at, class_id')
+    .select('id, email, name, role, cohort, instrument, created_at, class_id, guardian, phone, address, note')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -30,8 +28,7 @@ async function MembersTableLoader() {
     return <div className={styles.loading}>등록된 단원이 없습니다.</div>
   }
 
-  // 서버에서 불러온 데이터를 클라이언트 컴포넌트로 전달
-  return <MemberListClient initialUsers={users} />
+  return <MemberListClient initialUsers={users} viewerRole={viewerRole} />
 }
 
 export default async function MembersPage() {
@@ -47,7 +44,6 @@ export default async function MembersPage() {
 
   const role = ((userData?.role as string) || '').toLowerCase()
 
-  // 관리자(admin) 또는 디렉터(director)만 접근 가능
   if (role !== 'admin' && role !== 'director') {
     return (
       <div style={{ padding: '40px', fontFamily: 'sans-serif', textAlign: 'center' }}>
@@ -60,10 +56,8 @@ export default async function MembersPage() {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>단원 명부</h1>
-      
-      {/* 데이터 패칭 중일 때 보여줄 로딩 화면 */}
       <Suspense fallback={<div className={styles.loading}>데이터를 불러오는 중입니다...</div>}>
-        <MembersTableLoader />
+        <MembersTableLoader viewerRole={role} />
       </Suspense>
     </div>
   )

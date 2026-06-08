@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
 
@@ -13,6 +13,10 @@ type User = {
   instrument?: string | null
   class_id?: string | null
   created_at: string
+  guardian?: string | null
+  phone?: string | null
+  address?: string | null
+  note?: string | null
 }
 
 interface ClassRow {
@@ -31,13 +35,33 @@ interface TeacherClassItem {
 
 interface MemberListClientProps {
   initialUsers: User[]
+  viewerRole: string
+}
+
+type CsvRow = {
+  rowNum: number
+  name: string
+  email: string
+  password: string
+  role: string
+  cohort: string
+  instrument: string
+  errors: string[]
+}
+
+type ImportResult = {
+  rowNum: number
+  name: string
+  email: string
+  status: 'success' | 'error'
+  message?: string
 }
 
 const roleLabels: Record<string, string> = {
   admin: '관리자', director: '디렉터', teacher: '선생님', student: '학생',
 }
 
-export default function MemberListClient({ initialUsers }: MemberListClientProps) {
+export default function MemberListClient({ initialUsers, viewerRole }: MemberListClientProps) {
   const [users, setUsers]         = useState<User[]>(initialUsers)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [feedback, setFeedback]   = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -77,6 +101,19 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
   const [classModalPending, setClassModalPending] = useState<Record<string, 'professor' | 'instructor' | 'none'>>({})
   const [classModalSaving, setClassModalSaving]   = useState(false)
 
+  // 행 펼치기 (개인정보)
+  const [expandedRows, setExpandedRows]   = useState<Set<string>>(new Set())
+  const [editingPrivate, setEditingPrivate] = useState<string | null>(null)
+  const [privateDraft, setPrivateDraft]   = useState({ guardian: '', phone: '', address: '', note: '' })
+  const [privateSaving, setPrivateSaving] = useState(false)
+
+  // CSV 가져오기
+  const [csvRows, setCsvRows]             = useState<CsvRow[]>([])
+  const [importStatus, setImportStatus]   = useState<'idle' | 'preview' | 'importing' | 'done'>('idle')
+  const [importProgress, setImportProgress] = useState(0)
+  const [importResults, setImportResults] = useState<ImportResult[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const supabase = createClient()
 
   useEffect(() => { fetchClasses() }, [])
@@ -105,6 +142,116 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
       }
     })
     setTeacherClassMap(map)
+  }
+
+  // ── 행 펼치기 토글 ──
+  const toggleExpand = (userId: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+        if (editingPrivate === userId) setEditingPrivate(null)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+
+  const openPrivateEdit = (u: User) => {
+    setPrivateDraft({
+      guardian: u.guardian || '',
+      phone:    u.phone    || '',
+      address:  u.address  || '',
+      note:     u.note     || '',
+    })
+    setEditingPrivate(u.id)
+  }
+
+  const handleSavePrivate = async (userId: string) => {
+    setPrivateSaving(true)
+    try {
+      const res  = await fetch('/api/users/private', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, ...privateDraft }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '저장 실패')
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, ...data.user } : u
+      ))
+      setEditingPrivate(null)
+      showFeedback('개인 정보가 저장되었습니다.', 'success')
+    } catch (err: any) {
+      showFeedback(`저장 실패: ${err.message}`, 'error')
+    } finally {
+      setPrivateSaving(false)
+    }
+  }
+
+  // ── CSV 파싱 헬퍼 ──
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = []
+    let inQuote = false
+    let current = ''
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuote = !inQuote
+      } else if (ch === ',' && !inQuote) {
+        result.push(current); current = ''
+      } else {
+        current += ch
+      }
+    }
+    result.push(current)
+    return result
+  }
+
+  const parseCSV = (text: string): CsvRow[] => {
+    const cleaned = text.replace(/^﻿/, '')
+    const lines   = cleaned.split(/\r?\n/).filter(l => l.trim())
+    if (lines.length < 2) return []
+
+    const headers = parseCsvLine(lines[0]).map(h => h.trim())
+    const idx = {
+      name:       headers.findIndex(h => h === '이름'),
+      email:      headers.findIndex(h => h === '이메일'),
+      password:   headers.findIndex(h => h === '비밀번호'),
+      role:       headers.findIndex(h => ['역할', 'role'].includes(h)),
+      cohort:     headers.findIndex(h => ['기수', 'cohort'].includes(h)),
+      instrument: headers.findIndex(h => ['악기', 'instrument'].includes(h)),
+    }
+
+    const roleMap: Record<string, string> = {
+      '학생': 'student', student: 'student',
+      '선생님': 'teacher', teacher: 'teacher',
+      '디렉터': 'director', director: 'director',
+      '관리자': 'admin', admin: 'admin',
+    }
+
+    return lines.slice(1).map((line, i) => {
+      const cells = parseCsvLine(line)
+      const get   = (j: number) => j >= 0 ? (cells[j] || '').trim() : ''
+
+      const name       = get(idx.name)
+      const email      = get(idx.email)
+      const password   = get(idx.password) || 'sangsang1234!'
+      const rawRole    = get(idx.role)
+      const role       = roleMap[rawRole] || 'student'
+      const cohort     = get(idx.cohort)
+      const instrument = get(idx.instrument)
+
+      const errors: string[] = []
+      if (!name)  errors.push('이름 필수')
+      if (!email) errors.push('이메일 필수')
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('이메일 형식 오류')
+      if (password.length < 6) errors.push('비밀번호 6자 이상')
+
+      return { rowNum: i + 2, name, email, password, role, cohort, instrument, errors }
+    }).filter(row => row.name || row.email)
   }
 
   const showFeedback = (message: string, type: 'success' | 'error') => {
@@ -352,6 +499,75 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
     }
   }
 
+  // ── 샘플 CSV 다운로드 ──
+  const downloadSampleCSV = () => {
+    const sample = [
+      '이름,이메일,비밀번호,역할,기수,악기',
+      '홍길동,hong@sangsang.local,sangsang1234!,학생,4,바이올린',
+      '김철수,kim@sangsang.local,sangsang1234!,학생,4,첼로',
+      '이선생,lee@sangsang.local,sangsang1234!,선생님,,',
+    ].join('\n')
+    const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url; link.setAttribute('download', '단원명부_샘플.csv')
+    document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url)
+  }
+
+  // ── CSV 파일 선택 ──
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const text = ev.target?.result as string
+      const rows = parseCSV(text)
+      setCsvRows(rows)
+      setImportStatus('preview')
+      setImportProgress(0)
+      setImportResults([])
+    }
+    reader.readAsText(file, 'UTF-8')
+    e.target.value = ''
+  }
+
+  // ── CSV 일괄 가져오기 실행 ──
+  const handleImport = async () => {
+    const validRows = csvRows.filter(r => r.errors.length === 0)
+    if (validRows.length === 0) return
+    setImportStatus('importing')
+    setImportProgress(0)
+    const results: ImportResult[] = []
+
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i]
+      try {
+        const res  = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email:      row.email,
+            password:   row.password,
+            name:       row.name,
+            role:       row.role,
+            cohort:     row.cohort ? Number(row.cohort) : null,
+            instrument: row.instrument || null,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || '오류')
+        results.push({ rowNum: row.rowNum, name: row.name, email: row.email, status: 'success' })
+        setUsers(prev => [data.user, ...prev])
+      } catch (err: any) {
+        results.push({ rowNum: row.rowNum, name: row.name, email: row.email, status: 'error', message: err.message })
+      }
+      setImportProgress(i + 1)
+      setImportResults([...results])
+    }
+
+    setImportStatus('done')
+  }
+
   const getRoleBadgeClass = (role: string) => {
     switch (role.toLowerCase()) {
       case 'admin': return styles.adminBadge; case 'director': return styles.directorBadge
@@ -389,6 +605,8 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
     return <span style={{ color: '#a0aec0', fontSize: 13 }}>—</span>
   }
 
+  const validCsvCount = csvRows.filter(r => r.errors.length === 0).length
+
   return (
     <>
       {/* ── 액션 바 ── */}
@@ -397,6 +615,16 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
           <button className={styles.primaryBtn} onClick={() => setIsModalOpen(true)}>
             <span style={{ fontSize: '16px' }}>+</span> 단원 추가
           </button>
+          <button className={styles.secondaryBtn} onClick={() => fileInputRef.current?.click()}>
+            📥 CSV 가져오기
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+          />
           <button className={styles.secondaryBtn} onClick={() => setClassManageOpen(true)}>
             🏫 클래스 관리
           </button>
@@ -448,6 +676,7 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
         <table className={styles.table}>
           <thead>
             <tr>
+              <th style={{ width: 40, padding: '16px 8px' }}></th>
               <th>이름</th><th>이메일</th><th>권한</th><th>기수</th>
               <th>악기</th><th>소속반 / 담당반</th><th>가입일</th>
               <th style={{ textAlign: 'center' }}>관리</th>
@@ -455,7 +684,14 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
           </thead>
           <tbody>
             {filteredUsers.map(u => (
-              <tr key={u.id}>
+              <>
+              <tr key={u.id} className={expandedRows.has(u.id) ? styles.expandedMainRow : ''}>
+                <td style={{ padding: '14px 8px', textAlign: 'center' }}>
+                  <button className={styles.expandToggle} onClick={() => toggleExpand(u.id)}
+                    title={expandedRows.has(u.id) ? '접기' : '개인정보 펼치기'}>
+                    {expandedRows.has(u.id) ? '▼' : '▶'}
+                  </button>
+                </td>
                 <td style={{ fontWeight: 600 }}>{u.name}</td>
                 <td>{u.email}</td>
                 <td>
@@ -476,9 +712,75 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
                   <button className={styles.deleteBtn} onClick={() => handleDelete(u.id, u.name)} disabled={loadingId === u.id}>삭제</button>
                 </td>
               </tr>
+
+              {/* ── 펼쳐진 개인정보 행 ── */}
+              {expandedRows.has(u.id) && (
+                <tr key={`${u.id}-private`} className={styles.expandedRow}>
+                  <td colSpan={9} className={styles.expandedCell}>
+                    {editingPrivate === u.id ? (
+                      <div className={styles.privatePanel}>
+                        <div className={styles.privatePanelGrid}>
+                          <div className={styles.privateField}>
+                            <label>보호자</label>
+                            <input value={privateDraft.guardian} placeholder="보호자 이름"
+                              onChange={e => setPrivateDraft(d => ({ ...d, guardian: e.target.value }))} />
+                          </div>
+                          <div className={styles.privateField}>
+                            <label>연락처</label>
+                            <input value={privateDraft.phone} placeholder="010-0000-0000"
+                              onChange={e => setPrivateDraft(d => ({ ...d, phone: e.target.value }))} />
+                          </div>
+                          <div className={`${styles.privateField} ${styles.privateFieldFull}`}>
+                            <label>주소</label>
+                            <input value={privateDraft.address} placeholder="주소 입력"
+                              onChange={e => setPrivateDraft(d => ({ ...d, address: e.target.value }))} />
+                          </div>
+                          <div className={`${styles.privateField} ${styles.privateFieldFull}`}>
+                            <label>비고</label>
+                            <textarea value={privateDraft.note} placeholder="장애 등급, 특이사항 등"
+                              rows={2}
+                              onChange={e => setPrivateDraft(d => ({ ...d, note: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div className={styles.privatePanelActions}>
+                          <button className={styles.cmCancelBtn} onClick={() => setEditingPrivate(null)} disabled={privateSaving}>취소</button>
+                          <button className={styles.cmSaveBtn} onClick={() => handleSavePrivate(u.id)} disabled={privateSaving}>
+                            {privateSaving ? '저장 중...' : '저장'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={styles.privatePanel}>
+                        <div className={styles.privatePanelGrid}>
+                          <div className={styles.privateItem}>
+                            <span className={styles.privateLabel}>보호자</span>
+                            <span className={styles.privateValue}>{u.guardian || <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                          <div className={styles.privateItem}>
+                            <span className={styles.privateLabel}>연락처</span>
+                            <span className={styles.privateValue}>{u.phone || <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                          <div className={`${styles.privateItem} ${styles.privateItemFull}`}>
+                            <span className={styles.privateLabel}>주소</span>
+                            <span className={styles.privateValue}>{u.address || <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                          <div className={`${styles.privateItem} ${styles.privateItemFull}`}>
+                            <span className={styles.privateLabel}>비고</span>
+                            <span className={styles.privateValue} style={{ whiteSpace: 'pre-wrap' }}>{u.note || <span className={styles.privateEmpty}>미입력</span>}</span>
+                          </div>
+                        </div>
+                        <div className={styles.privatePanelActions}>
+                          <button className={styles.cmEditBtn} onClick={() => openPrivateEdit(u)}>수정</button>
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              )}
+              </>
             ))}
             {filteredUsers.length === 0 && (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>조건에 맞는 단원이 없습니다.</td></tr>
+              <tr><td colSpan={9} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>조건에 맞는 단원이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
@@ -540,7 +842,6 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
                 allClassData.map(c => (
                   <div key={c.id} className={styles.classManageRow}>
                     {editingId === c.id ? (
-                      /* 수정 모드 */
                       <>
                         <input
                           className={styles.classEditInput}
@@ -557,7 +858,6 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
                         </div>
                       </>
                     ) : (
-                      /* 표시 모드 */
                       <>
                         <span className={styles.cmRowName}>{c.name || '(이름 없음)'}</span>
                         <span className={styles.cmRowTeacher}>{getTeacherName(c.teacher_id)}</span>
@@ -635,6 +935,117 @@ export default function MemberListClient({ initialUsers }: MemberListClientProps
               <button type="button" className={styles.primaryBtn} onClick={handleSaveTeacherAssignments} disabled={classModalSaving} style={{ justifyContent: 'center' }}>
                 {classModalSaving ? '저장 중...' : '저장하기'}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CSV 가져오기 모달 ── */}
+      {importStatus !== 'idle' && (
+        <div className={styles.modalOverlay} onClick={() => importStatus !== 'importing' && setImportStatus('idle')}>
+          <div className={styles.importModal} onClick={e => e.stopPropagation()}>
+
+            {/* 미리보기 */}
+            {importStatus === 'preview' && (
+              <>
+                <h2 className={styles.modalTitle}>📥 CSV 일괄 가져오기</h2>
+                <div className={styles.importSummary}>
+                  <span>총 <b>{csvRows.length}</b>명</span>
+                  <span className={styles.importSummaryOk}>유효 <b>{validCsvCount}</b>명</span>
+                  {csvRows.some(r => r.errors.length > 0) && (
+                    <span className={styles.importSummaryErr}>오류 <b>{csvRows.filter(r => r.errors.length > 0).length}</b>명 (건너뜀)</span>
+                  )}
+                </div>
+                <div className={styles.importTableWrap}>
+                  <table className={styles.importTable}>
+                    <thead>
+                      <tr>
+                        <th>행</th><th>이름</th><th>이메일</th><th>역할</th><th>기수</th><th>악기</th><th>상태</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvRows.map(row => (
+                        <tr key={row.rowNum} className={row.errors.length > 0 ? styles.importRowError : ''}>
+                          <td style={{ color: '#a0aec0', fontSize: 12 }}>{row.rowNum}</td>
+                          <td>{row.name || <span style={{ color: '#a0aec0' }}>-</span>}</td>
+                          <td style={{ fontSize: 12 }}>{row.email || <span style={{ color: '#a0aec0' }}>-</span>}</td>
+                          <td>{roleLabels[row.role] || row.role}</td>
+                          <td>{row.cohort ? `${row.cohort}기` : '-'}</td>
+                          <td>{row.instrument || '-'}</td>
+                          <td>
+                            {row.errors.length > 0
+                              ? <span className={styles.importErrBadge}>{row.errors.join(', ')}</span>
+                              : <span className={styles.importOkBadge}>정상</span>
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className={styles.importHelp}>
+                  열 이름: <code>이름, 이메일, 비밀번호, 역할, 기수, 악기</code> &nbsp;·&nbsp;
+                  <button className={styles.importHelpBtn} onClick={downloadSampleCSV}>샘플 CSV 다운로드</button>
+                </div>
+                <div className={styles.modalActions}>
+                  <button className={styles.secondaryBtn} onClick={() => setImportStatus('idle')}>취소</button>
+                  <button className={styles.primaryBtn} disabled={validCsvCount === 0} onClick={handleImport} style={{ justifyContent: 'center' }}>
+                    {validCsvCount}명 가져오기 시작
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* 진행 중 */}
+            {importStatus === 'importing' && (
+              <>
+                <h2 className={styles.modalTitle}>단원 추가 중...</h2>
+                <div className={styles.progressWrap}>
+                  <div className={styles.progressBar}>
+                    <div className={styles.progressFill} style={{ width: `${(importProgress / validCsvCount) * 100}%` }} />
+                  </div>
+                  <div className={styles.progressText}>{importProgress} / {validCsvCount} 처리 완료</div>
+                </div>
+                <div className={styles.importResultList}>
+                  {importResults.map(r => (
+                    <div key={r.rowNum} className={r.status === 'success' ? styles.importResultOk : styles.importResultFail}>
+                      <span>{r.name} <span style={{ fontSize: 12, opacity: 0.7 }}>({r.email})</span></span>
+                      <span>{r.status === 'success' ? '✓ 완료' : `✗ ${r.message}`}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* 완료 */}
+            {importStatus === 'done' && (
+              <>
+                <h2 className={styles.modalTitle}>가져오기 완료</h2>
+                <div className={styles.importSummary}>
+                  <span className={styles.importSummaryOk}>
+                    ✓ 성공 <b>{importResults.filter(r => r.status === 'success').length}</b>명
+                  </span>
+                  {importResults.some(r => r.status === 'error') && (
+                    <span className={styles.importSummaryErr}>
+                      ✗ 실패 <b>{importResults.filter(r => r.status === 'error').length}</b>명
+                    </span>
+                  )}
+                </div>
+                {importResults.some(r => r.status === 'error') && (
+                  <div className={styles.importResultList}>
+                    <div className={styles.importResultListTitle}>실패 목록</div>
+                    {importResults.filter(r => r.status === 'error').map(r => (
+                      <div key={r.rowNum} className={styles.importResultFail}>
+                        <span>{r.name} <span style={{ fontSize: 12 }}>({r.email})</span></span>
+                        <span>✗ {r.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className={styles.modalActions}>
+                  <button className={styles.primaryBtn} onClick={() => setImportStatus('idle')} style={{ justifyContent: 'center' }}>닫기</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
