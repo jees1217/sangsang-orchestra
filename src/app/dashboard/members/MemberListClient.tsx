@@ -349,7 +349,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       const newRow = data as ClassRow
       setAllClassData(prev => [...prev, newRow].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')))
       setCreateName('')
-      setCreateTeacherId('')
+      setCreateTeacherIds([])
       showFeedback(`'${newRow.name}' 반이 생성되었습니다.`, 'success')
     } catch (err: any) {
       showFeedback(`반 생성 실패: ${err.message}`, 'error')
