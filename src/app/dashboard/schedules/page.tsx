@@ -41,6 +41,7 @@ export default function ScheduleManagementPage() {
   const [targetClassId, setTargetClassId] = useState('')
   const [targetUserId, setTargetUserId] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isTitleManual, setIsTitleManual] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   // 캘린더 상태
@@ -60,7 +61,7 @@ export default function ScheduleManagementPage() {
 
       const [{ data: tData }, { data: cData }, { data: sData }, { data: availData }] = await Promise.all([
         supabase.from('users').select('id, name').in('role', ['teacher', 'director']),
-        supabase.from('classes').select('id, name, cohort'),
+        supabase.from('classes').select('id, name, cohort, teacher_id'),
         supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name'),
         supabase.from('teacher_availabilities')
           .select('*, teacher:teacher_id(name)')
@@ -101,7 +102,7 @@ export default function ScheduleManagementPage() {
     setIsSubmitting(true)
 
     const payload: any = {
-      title, schedule_type: scheduleType, schedule_date: scheduleDate,
+      title: effectiveTitle, schedule_type: scheduleType, schedule_date: scheduleDate,
       start_time: `${startTime}:00`, end_time: `${endTime}:00`,
       teacher_id: teacherId || null, location,
       target_type: targetType, created_by: currentUser.id,
@@ -120,7 +121,7 @@ export default function ScheduleManagementPage() {
       const { error } = await supabase.from('schedules').insert(payload)
       if (error) throw error
       alert('일정이 성공적으로 등록되었습니다.')
-      setTitle(''); setLocation('')
+      setTitle(''); setIsTitleManual(false); setLocation('')
       await fetchSchedules()
       // 등록된 달로 캘린더 이동
       const [y, m] = scheduleDate.split('-').map(Number)
@@ -168,6 +169,34 @@ export default function ScheduleManagementPage() {
 
   const prevMonth = () => { if (calMonth === 0) { setCalYear(y => y - 1); setCalMonth(11) } else setCalMonth(m => m - 1) }
   const nextMonth = () => { if (calMonth === 11) { setCalYear(y => y + 1); setCalMonth(0) } else setCalMonth(m => m + 1) }
+
+  const autoTitle = useMemo(() => {
+    const typeName = TYPE_CONFIG[scheduleType]?.label || scheduleType
+    switch (targetType) {
+      case 'all': return `전체 단원 ${typeName}`
+      case 'cohort': return `${targetCohort}기 전체 ${typeName}`
+      case 'class': {
+        const cls = allClasses.find(c => c.id === targetClassId)
+        return cls ? `${cls.cohort}기 ${cls.name} ${typeName}` : ''
+      }
+      case 'individual': {
+        const student = allStudents.find(s => s.id === targetUserId)
+        return student ? `${student.name} ${typeName}` : ''
+      }
+      default: return ''
+    }
+  }, [targetType, targetCohort, targetClassId, targetUserId, scheduleType, allClasses, allStudents])
+
+  const effectiveTitle = isTitleManual ? title : autoTitle
+
+  useEffect(() => {
+    if (targetType === 'class' && targetClassId) {
+      const cls = allClasses.find(c => c.id === targetClassId)
+      setTeacherId(cls?.teacher_id || '')
+    } else if (targetType !== 'class') {
+      setTeacherId('')
+    }
+  }, [targetType, targetClassId, allClasses])
 
   const toDateKey = (day: number) => `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   const todayKey = new Date().toISOString().substring(0, 10)
@@ -218,36 +247,13 @@ export default function ScheduleManagementPage() {
               <div className={styles.formGroup}>
                 <label className={styles.label}>일정 유형</label>
                 <select className={styles.select} value={scheduleType} onChange={e => setScheduleType(e.target.value)}>
-                  <option value="online">💻 주중 온라인 수업</option>
-                  <option value="offline">🎻 주말 오프라인 합주</option>
+                  <option value="online">💻 온라인 수업</option>
+                  <option value="offline">🎻 오프라인 합주</option>
                   <option value="special_lecture">🎓 명사 특강</option>
                   <option value="camp">🏕️ 음악 캠프</option>
                   <option value="performance">🎉 연주회</option>
                   <option value="rehearsal">🔄 리허설</option>
                   <option value="ot">👋 오리엔테이션</option>
-                </select>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>일정 제목</label>
-                <input type="text" className={styles.input} required placeholder="예: 4기 첼로 심화반 온라인 수업" value={title} onChange={e => setTitle(e.target.value)} />
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>날짜 및 시간</label>
-                <input type="date" className={styles.input} required value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} style={{ marginBottom: 8 }} />
-                <div className={styles.row}>
-                  <input type="time" className={styles.input} required value={startTime} onChange={e => setStartTime(e.target.value)} />
-                  <span className={styles.timeSep}>~</span>
-                  <input type="time" className={styles.input} required value={endTime} onChange={e => setEndTime(e.target.value)} />
-                </div>
-              </div>
-
-              <div className={styles.formGroup}>
-                <label className={styles.label}>담당 선생님 (선택)</label>
-                <select className={styles.select} value={teacherId} onChange={e => setTeacherId(e.target.value)}>
-                  <option value="">담당자 없음</option>
-                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name} 선생님</option>)}
                 </select>
               </div>
 
@@ -288,6 +294,47 @@ export default function ScheduleManagementPage() {
                     </select>
                   </div>
                 )}
+              </div>
+
+              {targetType !== 'class' && (
+                <div className={styles.formGroup}>
+                  <label className={styles.label}>담당 선생님 (선택)</label>
+                  <select className={styles.select} value={teacherId} onChange={e => setTeacherId(e.target.value)}>
+                    <option value="">담당자 없음</option>
+                    {teachers.map(t => <option key={t.id} value={t.id}>{t.name} 선생님</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div className={styles.formGroup}>
+                <label className={styles.label}>일정 제목</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  required
+                  placeholder="참여 대상과 일정 유형을 선택하면 자동 완성됩니다"
+                  value={effectiveTitle}
+                  onChange={e => {
+                    const val = e.target.value
+                    if (val === '' || val === autoTitle) {
+                      setIsTitleManual(false)
+                      setTitle('')
+                    } else {
+                      setIsTitleManual(true)
+                      setTitle(val)
+                    }
+                  }}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.label}>날짜 및 시간</label>
+                <input type="date" className={styles.input} required value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} style={{ marginBottom: 8 }} />
+                <div className={styles.row}>
+                  <input type="time" className={styles.input} required value={startTime} onChange={e => setStartTime(e.target.value)} />
+                  <span className={styles.timeSep}>~</span>
+                  <input type="time" className={styles.input} required value={endTime} onChange={e => setEndTime(e.target.value)} />
+                </div>
               </div>
 
               <div className={styles.formGroup}>
