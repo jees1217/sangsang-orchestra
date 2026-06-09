@@ -281,7 +281,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       const password      = get(idx.password) || 'sangsang1234!'
       const rawRole       = get(idx.role)
       const role          = roleMap[rawRole] || 'student'
-      const cohort        = get(idx.cohort)
+      const cohortRaw     = get(idx.cohort).replace(/기$/, '').trim()
+      const cohort        = /^\d+$/.test(cohortRaw) ? cohortRaw : ''
       const instrument    = get(idx.instrument)
       const rawActive     = get(idx.is_active)
       const is_active     = rawActive === '비활성' ? false : true
