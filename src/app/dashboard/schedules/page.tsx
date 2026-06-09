@@ -193,7 +193,7 @@ export default function ScheduleManagementPage() {
     if (targetType === 'class' && targetClassId) {
       const cls = allClasses.find(c => c.id === targetClassId)
       const ids = cls?.teacher_ids || []
-      setTeacherId(ids.length === 1 ? ids[0] : '')
+      setTeacherId(ids[0] || '')
     } else if (targetType !== 'class') {
       setTeacherId('')
     }
@@ -297,7 +297,7 @@ export default function ScheduleManagementPage() {
                 )}
               </div>
 
-              {!(targetType === 'class' && (allClasses.find(c => c.id === targetClassId)?.teacher_ids || []).length === 1) && (
+              {targetType !== 'class' && (
                 <div className={styles.formGroup}>
                   <label className={styles.label}>담당 선생님 (선택)</label>
                   <select className={styles.select} value={teacherId} onChange={e => setTeacherId(e.target.value)}>
