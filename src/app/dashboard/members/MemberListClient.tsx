@@ -308,9 +308,9 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
   const teachers = useMemo(() => users.filter(u => u.role === 'teacher'), [users])
 
-  const getTeacherName = (teacherId: string | null) => {
-    if (!teacherId) return '미배정'
-    return users.find(u => u.id === teacherId)?.name ?? '알 수 없음'
+  const getTeacherNames = (teacherIds: string[] | null) => {
+    if (!teacherIds || teacherIds.length === 0) return '미배정'
+    return teacherIds.map(id => users.find(u => u.id === id)?.name ?? '알 수 없음').join(', ')
   }
 
   // ── 필터링 ──
@@ -988,7 +988,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                     ) : (
                       <>
                         <span className={styles.cmRowName}>{c.name || '(이름 없음)'}</span>
-                        <span className={styles.cmRowTeacher}>{getTeacherName(c.teacher_id)}</span>
+                        <span className={styles.cmRowTeacher}>{getTeacherNames(c.teacher_ids)}</span>
                         <div className={styles.cmRowActions}>
                           <button className={styles.cmEditBtn} onClick={() => { setEditingId(c.id); setEditingName(c.name || '') }}>수정</button>
                           <button className={styles.cmDeleteBtn} onClick={() => handleDeleteClass(c.id, c.name || '반')}>삭제</button>
