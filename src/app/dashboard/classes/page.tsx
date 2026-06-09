@@ -9,13 +9,22 @@ interface ClassData {
   name: string
   is_integrated: boolean
   meeting_link: string
+  teacher_id: string | null
+  teacher: { id: string; name: string } | null
+}
+
+interface Teacher {
+  id: string
+  name: string
 }
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassData[]>([])
   const [userRole, setUserRole] = useState<string>('')
+  const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [updatingTeacherId, setUpdatingTeacherId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -38,7 +47,7 @@ export default function ClassesPage() {
       setUserRole(userData.role)
 
       // 2. 권한(Role)에 따라 보여줄 반(Class) 목록 다르게 가져오기
-      let query = supabase.from('classes').select('*').order('created_at', { ascending: true })
+      let query = supabase.from('classes').select('*, teacher:teacher_id(id, name)').order('created_at', { ascending: true })
 
       if (userData.role === 'student') {
         // 학생: 본인이 소속된 반(class_id) 이거나 전체 통합 수업(is_integrated)만 보임
@@ -53,10 +62,14 @@ export default function ClassesPage() {
       } 
       // admin과 director는 조건 없이 모든 반을 다 가져옴
 
-      const { data: classData, error } = await query
+      const [{ data: classData, error }, { data: teacherData }] = await Promise.all([
+        query,
+        supabase.from('users').select('id, name').in('role', ['teacher', 'director']).order('name'),
+      ])
 
       if (error) throw error
-      setClasses(classData || [])
+      setClasses((classData || []) as ClassData[])
+      setTeachers(teacherData || [])
     } catch (error) {
       console.error('반 목록 불러오기 실패:', error)
     } finally {
@@ -83,9 +96,29 @@ export default function ClassesPage() {
     }
   }
 
-  // 화면에서 링크 입력칸의 글자를 바꿀 때 (임시로 화면 상태만 업데이트)
   const handleLinkChange = (classId: string, value: string) => {
     setClasses(classes.map(c => c.id === classId ? { ...c, meeting_link: value } : c))
+  }
+
+  const handleUpdateTeacher = async (classId: string, newTeacherId: string | null) => {
+    setUpdatingTeacherId(classId)
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .update({ teacher_id: newTeacherId })
+        .eq('id', classId)
+      if (error) throw error
+      const matched = teachers.find(t => t.id === newTeacherId) || null
+      setClasses(classes.map(c => c.id === classId
+        ? { ...c, teacher_id: newTeacherId, teacher: matched }
+        : c
+      ))
+    } catch (error) {
+      console.error('선생님 저장 에러:', error)
+      alert('선생님 저장에 실패했습니다.')
+    } finally {
+      setUpdatingTeacherId(null)
+    }
   }
 
   if (loading) return <div className={styles.loading}>수업 정보를 불러오는 중입니다...</div>
@@ -124,15 +157,35 @@ export default function ClassesPage() {
             ) : (
               /* 선생님/관리자 화면: 원클릭 입장 버튼 + 링크 수정 폼 동시 제공 */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                
+
                 {/* 1. 링크가 등록되어 있을 때만 '수업 입장(확인) 버튼' 표시 */}
                 {cls.meeting_link && (
                   <a href={cls.meeting_link} target="_blank" rel="noopener noreferrer" className={styles.joinBtn} style={{ backgroundColor: '#2b6cb0' }}>
                     수업 입장 및 확인하기 (관리자/선생님용)
                   </a>
                 )}
-                
-                {/* 2. 링크를 새로 올리거나 수정하는 폼 */}
+
+                {/* 2. 담당 선생님 수정 (admin/director만) */}
+                {(userRole === 'admin' || userRole === 'director') && (
+                  <div className={styles.inputGroup}>
+                    <select
+                      value={cls.teacher_id || ''}
+                      onChange={e => handleUpdateTeacher(cls.id, e.target.value || null)}
+                      className={styles.input}
+                      disabled={updatingTeacherId === cls.id}
+                    >
+                      <option value="">담당 선생님 없음</option>
+                      {teachers.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} 선생님</option>
+                      ))}
+                    </select>
+                    {updatingTeacherId === cls.id && (
+                      <span style={{ fontSize: 13, color: '#718096', whiteSpace: 'nowrap' }}>저장 중...</span>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. 링크를 새로 올리거나 수정하는 폼 */}
                 <div className={styles.inputGroup}>
                   <input
                     type="url"
