@@ -17,10 +17,9 @@ const MENUS = {
     { label: '나의 과제', path: '/dashboard/student/assignments', icon: '📝' },
   ],
   teacher: [
+    { label: '수업 관리', path: '/dashboard/teacher/management', icon: '📚' },
     { label: '출결/평가 관리', path: '/dashboard/evaluations', icon: '✔️' },
     { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📋' },
-    { label: '출강 스케줄 설정', path: '/dashboard/teacher/availabilities', icon: '🗓️' },
-    { label: '온라인 수업 관리', path: '/dashboard/classes', icon: '🔗' },
   ],
   director: [
     { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },
