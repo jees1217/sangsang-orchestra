@@ -59,7 +59,7 @@ export default function NoticesPage() {
       } 
       // 선생님용 담당 반 불러오기
       else if (role === 'teacher') {
-        const { data: tClasses } = await supabase.from('classes').select('id, name, cohort').or(`professor_id.eq.${user.id},instructor_id.eq.${user.id}`)
+        const { data: tClasses } = await supabase.from('classes').select('id, name, cohort').eq('teacher_id', user.id)
         setMyClasses(tClasses || [])
         setTargetType('class') // 선생님은 무조건 반 타겟으로 고정
         if (tClasses && tClasses.length > 0) setTargetClassId(tClasses[0].id)

@@ -129,7 +129,7 @@ export default function DirectorMonitoringPage() {
         // 교사-학생 배정 (classes)
         supabase
           .from('classes')
-          .select('student_id, teacher_id, professor_id, instructor_id'),
+          .select('student_id, teacher_id'),
       ])
 
       // ── 오늘 출결 ──
@@ -153,11 +153,10 @@ export default function DirectorMonitoringPage() {
       ;(classRows || []).forEach((c: any) => {
         const sid = c.student_id
         if (!sid) return
-        ;[c.teacher_id, c.professor_id, c.instructor_id].forEach((tid: string | null) => {
-          if (!tid) return
-          if (!teacherStudentMap[tid]) teacherStudentMap[tid] = new Set()
-          teacherStudentMap[tid].add(sid)
-        })
+        if (c.teacher_id) {
+          if (!teacherStudentMap[c.teacher_id]) teacherStudentMap[c.teacher_id] = new Set()
+          teacherStudentMap[c.teacher_id].add(sid)
+        }
       })
 
       // 교사별 마지막 평가일 + 미평가 학생 수

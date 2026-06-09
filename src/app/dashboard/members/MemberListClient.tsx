@@ -27,14 +27,11 @@ interface ClassRow {
   id: string
   name: string | null
   teacher_id: string | null
-  professor_id: string | null
-  instructor_id: string | null
 }
 
 interface TeacherClassItem {
   classId: string
   className: string
-  role: 'professor' | 'instructor'
 }
 
 interface MemberListClientProps {
@@ -111,7 +108,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   // 교사 반 배정 모달
   const [classModalOpen, setClassModalOpen]       = useState(false)
   const [classModalTeacher, setClassModalTeacher] = useState<User | null>(null)
-  const [classModalPending, setClassModalPending] = useState<Record<string, 'professor' | 'instructor' | 'none'>>({})
+  const [classModalPending, setClassModalPending] = useState<Record<string, boolean>>({})
   const [classModalSaving, setClassModalSaving]   = useState(false)
 
   // 행 펼치기 (개인정보)
@@ -134,7 +131,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, teacher_id, professor_id, instructor_id')
+      .select('id, name, teacher_id')
       .order('name')
     const rows = (data || []) as ClassRow[]
     setAllClassData(rows)
@@ -145,13 +142,9 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     const map: Record<string, TeacherClassItem[]> = {}
     rows.forEach(c => {
       const label = c.name || '(이름 없음)'
-      if (c.professor_id) {
-        if (!map[c.professor_id]) map[c.professor_id] = []
-        map[c.professor_id].push({ classId: c.id, className: label, role: 'professor' })
-      }
-      if (c.instructor_id) {
-        if (!map[c.instructor_id]) map[c.instructor_id] = []
-        map[c.instructor_id].push({ classId: c.id, className: label, role: 'instructor' })
+      if (c.teacher_id) {
+        if (!map[c.teacher_id]) map[c.teacher_id] = []
+        map[c.teacher_id].push({ classId: c.id, className: label })
       }
     })
     setTeacherClassMap(map)
@@ -350,7 +343,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       const { data, error } = await supabase
         .from('classes')
         .insert({ name: trimmed, teacher_id: createTeacherId })
-        .select('id, name, teacher_id, professor_id, instructor_id')
+        .select('id, name, teacher_id')
         .single()
       if (error) throw error
       const newRow = data as ClassRow
@@ -433,12 +426,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
   // ── 교사 반 배정 모달 열기 ──
   const openTeacherClassModal = (teacher: User) => {
-    const pending: Record<string, 'professor' | 'instructor' | 'none'> = {}
-    allClassData.forEach(c => {
-      if (c.professor_id === teacher.id)       pending[c.id] = 'professor'
-      else if (c.instructor_id === teacher.id) pending[c.id] = 'instructor'
-      else                                     pending[c.id] = 'none'
-    })
+    const pending: Record<string, boolean> = {}
+    allClassData.forEach(c => { pending[c.id] = c.teacher_id === teacher.id })
     setClassModalTeacher(teacher)
     setClassModalPending(pending)
     setClassModalOpen(true)
@@ -450,23 +439,13 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     setClassModalSaving(true)
     try {
       for (const c of allClassData) {
-        const newRole = classModalPending[c.id] ?? 'none'
-        const wasProf = c.professor_id  === classModalTeacher.id
-        const wasInst = c.instructor_id === classModalTeacher.id
-        const oldRole = wasProf ? 'professor' : wasInst ? 'instructor' : 'none'
-        if (newRole === oldRole) continue
-        const updates: Partial<{ professor_id: string | null; instructor_id: string | null }> = {}
-        if (newRole === 'professor') {
-          updates.professor_id = classModalTeacher.id
-          if (wasInst) updates.instructor_id = null
-        } else if (newRole === 'instructor') {
-          updates.instructor_id = classModalTeacher.id
-          if (wasProf) updates.professor_id = null
-        } else {
-          if (wasProf) updates.professor_id  = null
-          if (wasInst) updates.instructor_id = null
-        }
-        const { error } = await supabase.from('classes').update(updates).eq('id', c.id)
+        const shouldAssign = classModalPending[c.id] ?? false
+        const wasAssigned = c.teacher_id === classModalTeacher.id
+        if (shouldAssign === wasAssigned) continue
+        const { error } = await supabase
+          .from('classes')
+          .update({ teacher_id: shouldAssign ? classModalTeacher.id : null })
+          .eq('id', c.id)
         if (error) throw error
       }
       await fetchClasses()
@@ -699,8 +678,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
           {assignments.length === 0
             ? <span className={styles.unassignedText}>미배정</span>
             : assignments.map(tc => (
-                <span key={tc.classId} className={tc.role === 'professor' ? styles.classBadgeProf : styles.classBadgeInst}>
-                  {tc.className} {tc.role === 'professor' ? '(교수)' : '(강사)'}
+                <span key={tc.classId} className={styles.classBadgeProf}>
+                  {tc.className}
                 </span>
               ))
           }
@@ -1056,7 +1035,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
         <div className={styles.modalOverlay} onClick={() => setClassModalOpen(false)}>
           <div className={styles.classModal} onClick={e => e.stopPropagation()}>
             <h2 className={styles.modalTitle}>👩‍🏫 {classModalTeacher.name} 선생님 반 배정</h2>
-            <p className={styles.classModalSubtitle}>각 반에서의 역할을 선택하세요.</p>
+            <p className={styles.classModalSubtitle}>담당할 반을 선택하세요.</p>
             {allClassData.length === 0 ? (
               <div style={{ color: '#a0aec0', textAlign: 'center', padding: '20px 0' }}>
                 등록된 반이 없습니다. 클래스 관리에서 반을 생성해 주세요.
@@ -1067,12 +1046,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                 {allClassData.map(c => (
                   <div key={c.id} className={styles.classModalRow}>
                     <span className={styles.classModalName}>{c.name}</span>
-                    <select value={classModalPending[c.id] ?? 'none'}
-                      onChange={e => setClassModalPending(prev => ({ ...prev, [c.id]: e.target.value as 'professor' | 'instructor' | 'none' }))}
+                    <select value={classModalPending[c.id] ? 'assigned' : 'none'}
+                      onChange={e => setClassModalPending(prev => ({ ...prev, [c.id]: e.target.value === 'assigned' }))}
                       className={styles.classModalSelect}>
                       <option value="none">미배정</option>
-                      <option value="professor">담당교수 (주강사)</option>
-                      <option value="instructor">보조강사</option>
+                      <option value="assigned">담당</option>
                     </select>
                   </div>
                 ))}

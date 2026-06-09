@@ -49,11 +49,10 @@ export default async function TeacherDashboard() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
   const sevenDaysAgoStr = sevenDaysAgo.toISOString()
 
-  // 1단계: 담당 반 목록 (teacher_id / professor_id / instructor_id 모두 커버)
   const { data: rawClasses } = await supabase
     .from('classes')
     .select('id, student:student_id(id, name)')
-    .or(`teacher_id.eq.${user.id},professor_id.eq.${user.id},instructor_id.eq.${user.id}`)
+    .eq('teacher_id', user.id)
 
   const myClassIds = (rawClasses || []).map((c: any) => c.id as string)
 

@@ -48,8 +48,8 @@ export default function ClassesPage() {
           query = query.eq('is_integrated', true) // 소속반이 없으면 통합수업만
         }
       } else if (userData.role === 'teacher') {
-        // 선생님: 본인이 담당 교수(professor_id)이거나 보조 강사(instructor_id)인 반만 보임
-        query = query.or(`professor_id.eq.${user.id},instructor_id.eq.${user.id}`)
+        // 선생님: 담당 반만 보임
+        query = query.eq('teacher_id', user.id)
       } 
       // admin과 director는 조건 없이 모든 반을 다 가져옴
 

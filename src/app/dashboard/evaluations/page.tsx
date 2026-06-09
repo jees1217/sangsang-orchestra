@@ -73,7 +73,7 @@ export default function EvaluationsPage() {
         const { data: myClasses } = await supabase
           .from('classes')
           .select('id')
-          .or(`professor_id.eq.${user.id},instructor_id.eq.${user.id}`)
+          .eq('teacher_id', user.id)
         
         if (myClasses && myClasses.length > 0) {
           const classIds = myClasses.map(c => c.id)
