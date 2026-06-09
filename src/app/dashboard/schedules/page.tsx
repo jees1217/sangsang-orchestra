@@ -61,7 +61,7 @@ export default function ScheduleManagementPage() {
 
       const [{ data: tData }, { data: cData }, { data: sData }, { data: availData }] = await Promise.all([
         supabase.from('users').select('id, name').in('role', ['teacher', 'director']),
-        supabase.from('classes').select('id, name, cohort, teacher_id'),
+        supabase.from('classes').select('id, name, cohort, teacher_ids'),
         supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name'),
         supabase.from('teacher_availabilities')
           .select('*, teacher:teacher_id(name)')
@@ -192,7 +192,8 @@ export default function ScheduleManagementPage() {
   useEffect(() => {
     if (targetType === 'class' && targetClassId) {
       const cls = allClasses.find(c => c.id === targetClassId)
-      setTeacherId(cls?.teacher_id || '')
+      const ids = cls?.teacher_ids || []
+      setTeacherId(ids.length === 1 ? ids[0] : '')
     } else if (targetType !== 'class') {
       setTeacherId('')
     }
@@ -296,7 +297,7 @@ export default function ScheduleManagementPage() {
                 )}
               </div>
 
-              {targetType !== 'class' && (
+              {!(targetType === 'class' && (allClasses.find(c => c.id === targetClassId)?.teacher_ids || []).length === 1) && (
                 <div className={styles.formGroup}>
                   <label className={styles.label}>담당 선생님 (선택)</label>
                   <select className={styles.select} value={teacherId} onChange={e => setTeacherId(e.target.value)}>

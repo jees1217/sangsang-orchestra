@@ -52,7 +52,7 @@ export default async function TeacherDashboard() {
   const { data: rawClasses } = await supabase
     .from('classes')
     .select('id, student:student_id(id, name)')
-    .eq('teacher_id', user.id)
+    .filter('teacher_ids', 'cs', `{${user.id}}`)
 
   const myClassIds = (rawClasses || []).map((c: any) => c.id as string)
 

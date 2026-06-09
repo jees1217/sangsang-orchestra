@@ -9,8 +9,7 @@ interface ClassData {
   name: string
   is_integrated: boolean
   meeting_link: string
-  teacher_id: string | null
-  teacher: { id: string; name: string } | null
+  teacher_ids: string[] | null
 }
 
 interface Teacher {
@@ -24,16 +23,13 @@ export default function ClassesPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-  const [updatingTeacherId, setUpdatingTeacherId] = useState<string | null>(null)
+  const [togglingTeacher, setTogglingTeacher] = useState<string | null>(null)
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchClasses()
-  }, [])
+  useEffect(() => { fetchClasses() }, [])
 
   const fetchClasses = async () => {
     try {
-      // 1. 현재 로그인한 유저 정보 가져오기
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
@@ -46,21 +42,17 @@ export default function ClassesPage() {
       if (!userData) return
       setUserRole(userData.role)
 
-      // 2. 권한(Role)에 따라 보여줄 반(Class) 목록 다르게 가져오기
-      let query = supabase.from('classes').select('*, teacher:teacher_id(id, name)').order('created_at', { ascending: true })
+      let query = supabase.from('classes').select('*').order('created_at', { ascending: true })
 
       if (userData.role === 'student') {
-        // 학생: 본인이 소속된 반(class_id) 이거나 전체 통합 수업(is_integrated)만 보임
         if (userData.class_id) {
           query = query.or(`id.eq.${userData.class_id},is_integrated.eq.true`)
         } else {
-          query = query.eq('is_integrated', true) // 소속반이 없으면 통합수업만
+          query = query.eq('is_integrated', true)
         }
       } else if (userData.role === 'teacher') {
-        // 선생님: 담당 반만 보임
-        query = query.eq('teacher_id', user.id)
-      } 
-      // admin과 director는 조건 없이 모든 반을 다 가져옴
+        query = query.filter('teacher_ids', 'cs', `{${user.id}}`)
+      }
 
       const [{ data: classData, error }, { data: teacherData }] = await Promise.all([
         query,
@@ -77,19 +69,13 @@ export default function ClassesPage() {
     }
   }
 
-  // 관리자/선생님이 링크를 수정하고 저장하는 함수
   const handleUpdateLink = async (classId: string, newLink: string) => {
     setUpdatingId(classId)
     try {
-      const { error } = await supabase
-        .from('classes')
-        .update({ meeting_link: newLink })
-        .eq('id', classId)
-
+      const { error } = await supabase.from('classes').update({ meeting_link: newLink }).eq('id', classId)
       if (error) throw error
       alert('수업 링크가 성공적으로 저장되었습니다!')
-    } catch (error) {
-      console.error('링크 저장 에러:', error)
+    } catch {
       alert('링크 저장에 실패했습니다.')
     } finally {
       setUpdatingId(null)
@@ -100,31 +86,29 @@ export default function ClassesPage() {
     setClasses(classes.map(c => c.id === classId ? { ...c, meeting_link: value } : c))
   }
 
-  const handleUpdateTeacher = async (classId: string, newTeacherId: string | null) => {
-    setUpdatingTeacherId(classId)
+  const handleToggleTeacher = async (classId: string, teacherId: string, checked: boolean) => {
+    setTogglingTeacher(`${classId}-${teacherId}`)
     try {
-      const { error } = await supabase
-        .from('classes')
-        .update({ teacher_id: newTeacherId })
-        .eq('id', classId)
+      const cls = classes.find(c => c.id === classId)
+      const current = cls?.teacher_ids || []
+      const newIds = checked
+        ? [...current, teacherId]
+        : current.filter(id => id !== teacherId)
+
+      const { error } = await supabase.from('classes').update({ teacher_ids: newIds }).eq('id', classId)
       if (error) throw error
-      const matched = teachers.find(t => t.id === newTeacherId) || null
-      setClasses(classes.map(c => c.id === classId
-        ? { ...c, teacher_id: newTeacherId, teacher: matched }
-        : c
-      ))
-    } catch (error) {
-      console.error('선생님 저장 에러:', error)
+      setClasses(classes.map(c => c.id === classId ? { ...c, teacher_ids: newIds } : c))
+    } catch {
       alert('선생님 저장에 실패했습니다.')
     } finally {
-      setUpdatingTeacherId(null)
+      setTogglingTeacher(null)
     }
   }
 
   if (loading) return <div className={styles.loading}>수업 정보를 불러오는 중입니다...</div>
 
-  // 학생인지 여부에 따라 화면 UI 분리
   const isStudent = userRole === 'student'
+  const canEdit = userRole === 'admin' || userRole === 'director'
 
   return (
     <div className={styles.container}>
@@ -133,80 +117,98 @@ export default function ClassesPage() {
       {classes.length === 0 ? (
         <div className={styles.empty}>배정된 수업이 없습니다.</div>
       ) : (
-        classes.map((cls) => (
-          <div key={cls.id} className={styles.card}>
-            <div className={styles.cardHeader}>
-              <h2 className={styles.cardTitle}>
-                {cls.name}
-                {cls.is_integrated && <span className={styles.integratedBadge}>전체 통합 합주</span>}
-              </h2>
-              {!isStudent && <span className={styles.badge}>관리용</span>}
-            </div>
+        classes.map((cls) => {
+          const assignedIds = cls.teacher_ids || []
+          const assignedNames = assignedIds
+            .map(id => teachers.find(t => t.id === id)?.name)
+            .filter(Boolean)
 
-            {/* 학생 화면: 클릭하면 바로 넘어가는 크고 예쁜 입장 버튼 */}
-            {isStudent ? (
-              cls.meeting_link ? (
-                <a href={cls.meeting_link} target="_blank" rel="noopener noreferrer" className={styles.joinBtn}>
-                  수업 입장하기 (Zoom/Meet)
-                </a>
-              ) : (
-                <div style={{ color: '#e53e3e', fontWeight: 'bold', textAlign: 'center' }}>
-                  아직 선생님이 링크를 등록하지 않았습니다.
-                </div>
-              )
-            ) : (
-              /* 선생님/관리자 화면: 원클릭 입장 버튼 + 링크 수정 폼 동시 제공 */
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-
-                {/* 1. 링크가 등록되어 있을 때만 '수업 입장(확인) 버튼' 표시 */}
-                {cls.meeting_link && (
-                  <a href={cls.meeting_link} target="_blank" rel="noopener noreferrer" className={styles.joinBtn} style={{ backgroundColor: '#2b6cb0' }}>
-                    수업 입장 및 확인하기 (관리자/선생님용)
-                  </a>
-                )}
-
-                {/* 2. 담당 선생님 수정 (admin/director만) */}
-                {(userRole === 'admin' || userRole === 'director') && (
-                  <div className={styles.inputGroup}>
-                    <select
-                      value={cls.teacher_id || ''}
-                      onChange={e => handleUpdateTeacher(cls.id, e.target.value || null)}
-                      className={styles.input}
-                      disabled={updatingTeacherId === cls.id}
-                    >
-                      <option value="">담당 선생님 없음</option>
-                      {teachers.map(t => (
-                        <option key={t.id} value={t.id}>{t.name} 선생님</option>
-                      ))}
-                    </select>
-                    {updatingTeacherId === cls.id && (
-                      <span style={{ fontSize: 13, color: '#718096', whiteSpace: 'nowrap' }}>저장 중...</span>
-                    )}
-                  </div>
-                )}
-
-                {/* 3. 링크를 새로 올리거나 수정하는 폼 */}
-                <div className={styles.inputGroup}>
-                  <input
-                    type="url"
-                    placeholder="새로운 Zoom 또는 구글밋 링크(URL)를 입력하세요"
-                    value={cls.meeting_link || ''}
-                    onChange={(e) => handleLinkChange(cls.id, e.target.value)}
-                    className={styles.input}
-                  />
-                  <button
-                    onClick={() => handleUpdateLink(cls.id, cls.meeting_link)}
-                    className={styles.saveBtn}
-                    disabled={updatingId === cls.id}
-                  >
-                    {updatingId === cls.id ? '저장 중...' : '저장하기'}
-                  </button>
-                </div>
-
+          return (
+            <div key={cls.id} className={styles.card}>
+              <div className={styles.cardHeader}>
+                <h2 className={styles.cardTitle}>
+                  {cls.name}
+                  {cls.is_integrated && <span className={styles.integratedBadge}>전체 통합 합주</span>}
+                </h2>
+                {!isStudent && <span className={styles.badge}>관리용</span>}
               </div>
-            )}
-          </div>
-        ))
+
+              {!isStudent && assignedNames.length > 0 && (
+                <div style={{ fontSize: 13, color: '#4a5568', marginBottom: 4 }}>
+                  👨‍🏫 {assignedNames.join(', ')} 선생님
+                </div>
+              )}
+
+              {isStudent ? (
+                cls.meeting_link ? (
+                  <a href={cls.meeting_link} target="_blank" rel="noopener noreferrer" className={styles.joinBtn}>
+                    수업 입장하기 (Zoom/Meet)
+                  </a>
+                ) : (
+                  <div style={{ color: '#e53e3e', fontWeight: 'bold', textAlign: 'center' }}>
+                    아직 선생님이 링크를 등록하지 않았습니다.
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+                  {cls.meeting_link && (
+                    <a href={cls.meeting_link} target="_blank" rel="noopener noreferrer" className={styles.joinBtn} style={{ backgroundColor: '#2b6cb0' }}>
+                      수업 입장 및 확인하기 (관리자/선생님용)
+                    </a>
+                  )}
+
+                  {/* 담당 선생님 체크박스 (admin/director만) */}
+                  {canEdit && (
+                    <div>
+                      <div style={{ fontSize: 12, color: '#718096', marginBottom: 6, fontWeight: 600 }}>담당 선생님</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {teachers.map(t => {
+                          const key = `${cls.id}-${t.id}`
+                          const checked = assignedIds.includes(t.id)
+                          return (
+                            <label key={t.id} style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              fontSize: 13, cursor: 'pointer',
+                              opacity: togglingTeacher === key ? 0.5 : 1,
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={togglingTeacher === key}
+                                onChange={e => handleToggleTeacher(cls.id, t.id, e.target.checked)}
+                              />
+                              {t.name}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Zoom 링크 수정 */}
+                  <div className={styles.inputGroup}>
+                    <input
+                      type="url"
+                      placeholder="새로운 Zoom 또는 구글밋 링크(URL)를 입력하세요"
+                      value={cls.meeting_link || ''}
+                      onChange={(e) => handleLinkChange(cls.id, e.target.value)}
+                      className={styles.input}
+                    />
+                    <button
+                      onClick={() => handleUpdateLink(cls.id, cls.meeting_link)}
+                      className={styles.saveBtn}
+                      disabled={updatingId === cls.id}
+                    >
+                      {updatingId === cls.id ? '저장 중...' : '저장하기'}
+                    </button>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          )
+        })
       )}
     </div>
   )

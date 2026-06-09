@@ -69,7 +69,7 @@ export default function TeacherStudentsPage() {
       const { data: classRows } = await supabase
         .from('classes')
         .select('student_id')
-        .eq('teacher_id', user.id)
+        .filter('teacher_ids', 'cs', `{${user.id}}`)
 
       const studentIds = [...new Set((classRows || []).map((r: any) => r.student_id).filter(Boolean))]
 

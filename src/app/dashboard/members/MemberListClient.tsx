@@ -26,7 +26,7 @@ type User = {
 interface ClassRow {
   id: string
   name: string | null
-  teacher_id: string | null
+  teacher_ids: string[] | null
 }
 
 interface TeacherClassItem {
@@ -97,7 +97,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
   // 새 반 추가 (관리 모달 내부)
   const [createName, setCreateName]           = useState('')
-  const [createTeacherId, setCreateTeacherId] = useState('')
+  const [createTeacherIds, setCreateTeacherIds] = useState<string[]>([])
   const [createSaving, setCreateSaving]       = useState(false)
 
   // 반 이름 수정 (인라인)
@@ -131,7 +131,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   const fetchClasses = async () => {
     const { data } = await supabase
       .from('classes')
-      .select('id, name, teacher_id')
+      .select('id, name, teacher_ids')
       .order('name')
     const rows = (data || []) as ClassRow[]
     setAllClassData(rows)
@@ -142,10 +142,10 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     const map: Record<string, TeacherClassItem[]> = {}
     rows.forEach(c => {
       const label = c.name || '(이름 없음)'
-      if (c.teacher_id) {
-        if (!map[c.teacher_id]) map[c.teacher_id] = []
-        map[c.teacher_id].push({ classId: c.id, className: label })
-      }
+      ;(c.teacher_ids || []).forEach(tid => {
+        if (!map[tid]) map[tid] = []
+        map[tid].push({ classId: c.id, className: label })
+      })
     })
     setTeacherClassMap(map)
   }
@@ -337,13 +337,13 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = createName.trim()
-    if (!trimmed || !createTeacherId) return
+    if (!trimmed) return
     setCreateSaving(true)
     try {
       const { data, error } = await supabase
         .from('classes')
-        .insert({ name: trimmed, teacher_id: createTeacherId })
-        .select('id, name, teacher_id')
+        .insert({ name: trimmed, teacher_ids: createTeacherIds })
+        .select('id, name, teacher_ids')
         .single()
       if (error) throw error
       const newRow = data as ClassRow
@@ -427,7 +427,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   // ── 교사 반 배정 모달 열기 ──
   const openTeacherClassModal = (teacher: User) => {
     const pending: Record<string, boolean> = {}
-    allClassData.forEach(c => { pending[c.id] = c.teacher_id === teacher.id })
+    allClassData.forEach(c => { pending[c.id] = (c.teacher_ids || []).includes(teacher.id) })
     setClassModalTeacher(teacher)
     setClassModalPending(pending)
     setClassModalOpen(true)
@@ -440,12 +440,13 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     try {
       for (const c of allClassData) {
         const shouldAssign = classModalPending[c.id] ?? false
-        const wasAssigned = c.teacher_id === classModalTeacher.id
+        const currentIds = c.teacher_ids || []
+        const wasAssigned = currentIds.includes(classModalTeacher.id)
         if (shouldAssign === wasAssigned) continue
-        const { error } = await supabase
-          .from('classes')
-          .update({ teacher_id: shouldAssign ? classModalTeacher.id : null })
-          .eq('id', c.id)
+        const newIds = shouldAssign
+          ? [...currentIds, classModalTeacher.id]
+          : currentIds.filter(id => id !== classModalTeacher.id)
+        const { error } = await supabase.from('classes').update({ teacher_ids: newIds }).eq('id', c.id)
         if (error) throw error
       }
       await fetchClasses()
@@ -1008,13 +1009,22 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                   value={createName} onChange={e => setCreateName(e.target.value)}
                   className={styles.classCreateInput}
                 />
-                <select required value={createTeacherId} onChange={e => setCreateTeacherId(e.target.value)}
-                  className={styles.classCreateSelect}>
-                  <option value="">담당 선생님 선택</option>
-                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                <div className={styles.classCreateTeachers}>
+                  {teachers.map(t => (
+                    <label key={t.id} className={styles.classCreateTeacherItem}>
+                      <input
+                        type="checkbox"
+                        checked={createTeacherIds.includes(t.id)}
+                        onChange={e => setCreateTeacherIds(prev =>
+                          e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id)
+                        )}
+                      />
+                      {t.name}
+                    </label>
+                  ))}
+                </div>
                 <button type="submit" className={styles.classCreateBtn}
-                  disabled={createSaving || !createName.trim() || !createTeacherId}>
+                  disabled={createSaving || !createName.trim()}>
                   {createSaving ? '생성 중...' : '생성'}
                 </button>
               </form>
