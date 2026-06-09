@@ -45,6 +45,7 @@ type CsvRow = {
   email: string
   password: string
   role: string
+  rawRole: string
   cohort: string
   instrument: string
   is_active: boolean
@@ -68,6 +69,13 @@ type ImportResult = {
 
 const roleLabels: Record<string, string> = {
   admin: '관리자', director: '디렉터', teacher: '선생님', student: '학생',
+}
+
+const roleMap: Record<string, string> = {
+  '학생': 'student', student: 'student',
+  '선생님': 'teacher', teacher: 'teacher',
+  '디렉터': 'director', director: 'director',
+  '관리자': 'admin', admin: 'admin',
 }
 
 export default function MemberListClient({ initialUsers, viewerRole }: MemberListClientProps) {
@@ -264,13 +272,6 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       note:           headers.findIndex(h => ['비고', 'note'].includes(h)),
     }
 
-    const roleMap: Record<string, string> = {
-      '학생': 'student', student: 'student',
-      '선생님': 'teacher', teacher: 'teacher',
-      '디렉터': 'director', director: 'director',
-      '관리자': 'admin', admin: 'admin',
-    }
-
     return lines.slice(1).map((line, i) => {
       const cells = parseCsvLine(line)
       const get   = (j: number) => j >= 0 ? (cells[j] || '').trim() : ''
@@ -298,7 +299,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('이메일 형식 오류')
       if (password.length < 6) errors.push('비밀번호 6자 이상')
 
-      return { rowNum: i + 2, name, email, password, role, cohort, instrument, is_active,
+      return { rowNum: i + 2, name, email, password, role, rawRole, cohort, instrument, is_active,
                birth_date, grade, phone, guardian, guardian_phone, address, note, errors }
     }).filter(row => row.name || row.email)
   }
@@ -618,16 +619,15 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       try {
         if (existingUser) {
           // 기존 단원 — 개인정보 및 기수/악기/역할 갱신
+          const updateBody: Record<string, any> = { id: existingUser.id, ...privatePayload(row) }
+          if (row.cohort)     updateBody.cohort     = Number(row.cohort)
+          if (row.instrument) updateBody.instrument = row.instrument
+          if (row.rawRole && roleMap[row.rawRole]) updateBody.role = row.role
+
           const res  = await fetch('/api/users/private', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: existingUser.id,
-              ...privatePayload(row),
-              cohort:     row.cohort     ? Number(row.cohort) : null,
-              instrument: row.instrument || null,
-              role:       row.role,
-            }),
+            body: JSON.stringify(updateBody),
           })
           const data = await res.json()
           if (!res.ok) throw new Error(data.error || '오류')
