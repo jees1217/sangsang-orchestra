@@ -49,25 +49,31 @@ export default async function TeacherDashboard() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
   const sevenDaysAgoStr = sevenDaysAgo.toISOString()
 
+  // 1단계: 담당 반 목록 (teacher_id / professor_id / instructor_id 모두 커버)
+  const { data: rawClasses } = await supabase
+    .from('classes')
+    .select('id, student:student_id(id, name)')
+    .or(`teacher_id.eq.${user.id},professor_id.eq.${user.id},instructor_id.eq.${user.id}`)
+
+  const myClassIds = (rawClasses || []).map((c: any) => c.id as string)
+
+  // 2단계: 나머지 데이터 병렬 조회
+  const scheduleFilter = myClassIds.length > 0
+    ? `teacher_id.eq.${user.id},target_class_id.in.(${myClassIds.join(',')})`
+    : `teacher_id.eq.${user.id}`
+
   const [
     { data: rawSchedules },
-    { data: rawClasses },
     { data: rawEvals },
     { data: rawAttendances },
   ] = await Promise.all([
-    // 오늘 담당 수업 (teacher_id 직접 배정된 일정)
+    // 오늘 수업: 직접 배정(teacher_id) + 담당 반 일정(target_class_id) 모두 포함
     supabase
       .from('schedules')
       .select('id, title, schedule_type, start_time, end_time, location')
-      .eq('teacher_id', user.id)
       .eq('schedule_date', todayStr)
+      .or(scheduleFilter)
       .order('start_time', { ascending: true }),
-
-    // 담당 학생 목록 (teacher_id / professor_id / instructor_id 모두 커버)
-    supabase
-      .from('classes')
-      .select('student:student_id(id, name)')
-      .or(`teacher_id.eq.${user.id},professor_id.eq.${user.id},instructor_id.eq.${user.id}`),
 
     // 최근 7일 내 내가 작성한 평가 → 평가한 student_id 목록
     supabase
