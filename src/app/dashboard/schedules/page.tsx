@@ -8,7 +8,7 @@ const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 const WEEK_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; colorClass: string }> = {
-  online:          { label: '온라인 수업',    icon: '💻', colorClass: 'typeMint'   },
+  online:          { label: '온라인 클래스',   icon: '💻', colorClass: 'typeMint'   },
   offline:         { label: '오프라인 합주',  icon: '🎻', colorClass: 'typeBlue'   },
   special_lecture: { label: '명사 특강',      icon: '🎓', colorClass: 'typePurple' },
   camp:            { label: '음악 캠프',      icon: '🏕️', colorClass: 'typeOrange' },
@@ -43,6 +43,7 @@ export default function ScheduleManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isTitleManual, setIsTitleManual] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // 캘린더 상태
   const [calYear, setCalYear] = useState(new Date().getFullYear())
@@ -118,21 +119,51 @@ export default function ScheduleManagementPage() {
     }
 
     try {
-      const { error } = await supabase.from('schedules').insert(payload)
-      if (error) throw error
-      alert('일정이 성공적으로 등록되었습니다.')
+      if (editingId) {
+        const { error } = await supabase.from('schedules').update(payload).eq('id', editingId)
+        if (error) throw error
+        alert('일정이 수정되었습니다.')
+        setEditingId(null)
+      } else {
+        const { error } = await supabase.from('schedules').insert(payload)
+        if (error) throw error
+        alert('일정이 성공적으로 등록되었습니다.')
+      }
       setTitle(''); setIsTitleManual(false); setLocation('')
       await fetchSchedules()
-      // 등록된 달로 캘린더 이동
       const [y, m] = scheduleDate.split('-').map(Number)
       setCalYear(y); setCalMonth(m - 1)
       setSelectedDate(scheduleDate)
     } catch (error) {
-      console.error('등록 실패:', error)
-      alert('일정 등록 중 오류가 발생했습니다.')
+      console.error(editingId ? '수정 실패:' : '등록 실패:', error)
+      alert(editingId ? '일정 수정 중 오류가 발생했습니다.' : '일정 등록 중 오류가 발생했습니다.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleEdit = (sc: any) => {
+    setEditingId(sc.id)
+    setScheduleType(sc.schedule_type)
+    setScheduleDate(sc.schedule_date.substring(0, 10))
+    setStartTime(sc.start_time.substring(0, 5))
+    setEndTime(sc.end_time.substring(0, 5))
+    setTeacherId(sc.teacher_id || '')
+    setLocation(sc.location || '')
+    setTargetType(sc.target_type)
+    if (sc.target_type === 'cohort') setTargetCohort(String(sc.target_cohort))
+    if (sc.target_type === 'class') setTargetClassId(sc.target_class_id || '')
+    if (sc.target_type === 'individual') setTargetUserId(sc.target_user_id || '')
+    setIsTitleManual(true)
+    setTitle(sc.title)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setTitle(''); setIsTitleManual(false); setLocation('')
+    setScheduleType('online'); setScheduleDate(''); setStartTime('10:00'); setEndTime('12:00')
+    setTeacherId(''); setTargetType('all'); setTargetClassId(''); setTargetUserId('')
   }
 
   const handleDelete = async (id: string) => {
@@ -243,12 +274,14 @@ export default function ScheduleManagementPage() {
         {/* ──────── 왼쪽: 폼 ──────── */}
         <div className={styles.leftPanel}>
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>새로운 일정 등록</h2>
+            <h2 className={styles.cardTitle}>
+              {editingId ? '✏️ 일정 수정' : '새로운 일정 등록'}
+            </h2>
             <form onSubmit={handleSubmit}>
               <div className={styles.formGroup}>
                 <label className={styles.label}>일정 유형</label>
                 <select className={styles.select} value={scheduleType} onChange={e => setScheduleType(e.target.value)}>
-                  <option value="online">💻 온라인 수업</option>
+                  <option value="online">💻 온라인 클래스</option>
                   <option value="offline">🎻 오프라인 합주</option>
                   <option value="special_lecture">🎓 명사 특강</option>
                   <option value="camp">🏕️ 음악 캠프</option>
@@ -344,8 +377,13 @@ export default function ScheduleManagementPage() {
               </div>
 
               <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
-                {isSubmitting ? '등록 중...' : '✅ 일정 확정 및 캘린더 등록'}
+                {isSubmitting ? (editingId ? '수정 중...' : '등록 중...') : editingId ? '✅ 수정 완료' : '✅ 일정 확정 및 캘린더 등록'}
               </button>
+              {editingId && (
+                <button type="button" className={styles.cancelEditBtn} onClick={handleCancelEdit}>
+                  취소
+                </button>
+              )}
             </form>
           </div>
 
@@ -445,7 +483,10 @@ export default function ScheduleManagementPage() {
                       <TypeBadge type={sc.schedule_type} />
                       <span className={styles.targetBadge}>👥 {getTargetLabel(sc)}</span>
                     </div>
-                    <button className={styles.deleteBtn} onClick={() => handleDelete(sc.id)}>삭제</button>
+                    <div className={styles.cardActions}>
+                      <button className={styles.editBtn} onClick={() => handleEdit(sc)}>수정</button>
+                      <button className={styles.deleteBtn} onClick={() => handleDelete(sc.id)}>삭제</button>
+                    </div>
                   </div>
                   <div className={styles.scTitle}>{sc.title}</div>
                   <div className={styles.scMeta}>

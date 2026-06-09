@@ -13,8 +13,6 @@ interface SidebarProps {
 const MENUS = {
   student: [
     { label: '내 과제', path: '/dashboard/student/assignments', icon: '📝' },
-    { label: '악보 보기', path: '/dashboard/student/scores', icon: '🎵' },
-    // [변경됨] 학생용 일정표 메뉴로 업데이트
     { label: '내 일정표', path: '/dashboard/student/schedules', icon: '📅' },
   ],
   teacher: [

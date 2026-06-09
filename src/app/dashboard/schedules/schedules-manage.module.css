@@ -316,6 +316,22 @@
   word-break: break-all;
 }
 
+.cardActions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.editBtn {
+  background: none;
+  border: none;
+  color: #2B6CB0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.editBtn:hover { background: #EBF8FF; }
+
 .deleteBtn {
   background: none;
   border: none;
@@ -329,6 +345,22 @@
   font-family: inherit;
 }
 .deleteBtn:hover { background: #FEF2F2; }
+
+.cancelEditBtn {
+  width: 100%;
+  padding: 10px;
+  background: #F1F5F9;
+  color: #475569;
+  border: none;
+  border-radius: var(--radius-md, 14px);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 6px;
+  font-family: inherit;
+  transition: background 0.2s;
+}
+.cancelEditBtn:hover { background: #E2E8F0; }
 
 .empty {
   text-align: center;
