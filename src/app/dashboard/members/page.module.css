@@ -609,6 +609,15 @@
 
 .classCreateWarn { font-size: 12px; color: #E53E3E; margin: 8px 0 0; }
 
+.classCreateToggleBtn {
+  width: 100%; padding: 10px;
+  border: 1.5px dashed #00A99D; border-radius: 10px;
+  background: transparent; color: #00A99D;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: background 0.15s;
+}
+.classCreateToggleBtn:hover { background: #F0F8F7; }
+
 .classCreateTeachers {
   display: flex; flex-wrap: wrap; gap: 6px 14px;
   padding: 8px 12px; background: white;

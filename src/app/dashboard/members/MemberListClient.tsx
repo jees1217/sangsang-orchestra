@@ -99,6 +99,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   const [createName, setCreateName]           = useState('')
   const [createTeacherIds, setCreateTeacherIds] = useState<string[]>([])
   const [createSaving, setCreateSaving]       = useState(false)
+  const [showCreateForm, setShowCreateForm]   = useState(false)
 
   // 반 이름 + 선생님 수정 (인라인)
   const [editingId, setEditingId]               = useState<string | null>(null)
@@ -351,6 +352,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       setAllClassData(prev => [...prev, newRow].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko')))
       setCreateName('')
       setCreateTeacherIds([])
+      setShowCreateForm(false)
       showFeedback(`'${newRow.name}' 반이 생성되었습니다.`, 'success')
     } catch (err: any) {
       showFeedback(`반 생성 실패: ${err.message}`, 'error')
@@ -1016,38 +1018,54 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
               )}
             </div>
 
-            {/* 새 반 추가 폼 */}
-            <div className={styles.classCreateSection}>
-              <div className={styles.classCreateTitle}>+ 새 반 추가</div>
-              <form onSubmit={handleCreateClass} className={styles.classCreateForm}>
-                <input
-                  type="text" required placeholder="반 이름 입력 (예: 바이올린 A반)"
-                  value={createName} onChange={e => setCreateName(e.target.value)}
-                  className={styles.classCreateInput}
-                />
-                <div className={styles.classCreateTeachers}>
-                  {teachers.map(t => (
-                    <label key={t.id} className={styles.classCreateTeacherItem}>
-                      <input
-                        type="checkbox"
-                        checked={createTeacherIds.includes(t.id)}
-                        onChange={e => setCreateTeacherIds(prev =>
-                          e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id)
-                        )}
-                      />
-                      {t.name}
-                    </label>
-                  ))}
-                </div>
-                <button type="submit" className={styles.classCreateBtn}
-                  disabled={createSaving || !createName.trim()}>
-                  {createSaving ? '생성 중...' : '생성'}
-                </button>
-              </form>
-              {teachers.length === 0 && (
-                <p className={styles.classCreateWarn}>선생님 계정을 먼저 추가해 주세요.</p>
-              )}
-            </div>
+            {/* 새 반 추가 */}
+            {!showCreateForm ? (
+              <button
+                className={styles.classCreateToggleBtn}
+                onClick={() => setShowCreateForm(true)}
+              >
+                + 신규 반 생성
+              </button>
+            ) : (
+              <div className={styles.classCreateSection}>
+                <div className={styles.classCreateTitle}>+ 새 반 추가</div>
+                <form onSubmit={handleCreateClass} className={styles.classCreateForm}>
+                  <input
+                    type="text" required placeholder="반 이름 입력 (예: 바이올린 A반)"
+                    value={createName} onChange={e => setCreateName(e.target.value)}
+                    className={styles.classCreateInput}
+                    autoFocus
+                  />
+                  <div className={styles.classCreateTeachers}>
+                    {teachers.map(t => (
+                      <label key={t.id} className={styles.classCreateTeacherItem}>
+                        <input
+                          type="checkbox"
+                          checked={createTeacherIds.includes(t.id)}
+                          onChange={e => setCreateTeacherIds(prev =>
+                            e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id)
+                          )}
+                        />
+                        {t.name}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="submit" className={styles.classCreateBtn}
+                      disabled={createSaving || !createName.trim()}>
+                      {createSaving ? '생성 중...' : '생성'}
+                    </button>
+                    <button type="button" className={styles.cmCancelBtn}
+                      onClick={() => { setShowCreateForm(false); setCreateName(''); setCreateTeacherIds([]) }}>
+                      취소
+                    </button>
+                  </div>
+                </form>
+                {teachers.length === 0 && (
+                  <p className={styles.classCreateWarn}>선생님 계정을 먼저 추가해 주세요.</p>
+                )}
+              </div>
+            )}
 
             <div className={styles.modalActions} style={{ marginTop: 0 }}>
               <button className={styles.primaryBtn} onClick={() => setClassManageOpen(false)} style={{ justifyContent: 'center' }}>닫기</button>
