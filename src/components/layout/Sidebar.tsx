@@ -77,7 +77,7 @@ export default function Sidebar({ role }: SidebarProps) {
       </ul>
 
       <div className={styles.footer}>
-        © 2026 Sangsang
+        © Music for One
       </div>
     </aside>
   )
