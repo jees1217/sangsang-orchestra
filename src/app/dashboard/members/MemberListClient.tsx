@@ -617,11 +617,17 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
       try {
         if (existingUser) {
-          // 기존 단원 — 개인정보 갱신
+          // 기존 단원 — 개인정보 및 기수/악기/역할 갱신
           const res  = await fetch('/api/users/private', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: existingUser.id, ...privatePayload(row) }),
+            body: JSON.stringify({
+              id: existingUser.id,
+              ...privatePayload(row),
+              cohort:     row.cohort     ? Number(row.cohort) : null,
+              instrument: row.instrument || null,
+              role:       row.role,
+            }),
           })
           const data = await res.json()
           if (!res.ok) throw new Error(data.error || '오류')

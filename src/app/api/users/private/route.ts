@@ -38,12 +38,15 @@ export async function PATCH(request: Request) {
     if ('birth_date'     in body) updates.birth_date     = body.birth_date     ?? null
     if ('grade'          in body) updates.grade          = body.grade          ?? null
     if ('guardian_phone' in body) updates.guardian_phone = body.guardian_phone ?? null
+    if ('cohort'         in body) updates.cohort         = body.cohort ? Number(body.cohort) : null
+    if ('instrument'     in body) updates.instrument     = body.instrument     ?? null
+    if ('role'           in body) updates.role           = body.role           ?? null
 
     const { data, error } = await supabaseAdmin
       .from('users')
       .update(updates)
       .eq('id', id)
-      .select('id, guardian, phone, address, note, is_active, birth_date, grade, guardian_phone')
+      .select('id, guardian, phone, address, note, is_active, birth_date, grade, guardian_phone, cohort, instrument, role')
       .single()
 
     if (error) throw error
