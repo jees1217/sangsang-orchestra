@@ -100,10 +100,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   const [createTeacherIds, setCreateTeacherIds] = useState<string[]>([])
   const [createSaving, setCreateSaving]       = useState(false)
 
-  // 반 이름 수정 (인라인)
-  const [editingId, setEditingId]     = useState<string | null>(null)
-  const [editingName, setEditingName] = useState('')
-  const [editSaving, setEditSaving]   = useState(false)
+  // 반 이름 + 선생님 수정 (인라인)
+  const [editingId, setEditingId]               = useState<string | null>(null)
+  const [editingName, setEditingName]           = useState('')
+  const [editingTeacherIds, setEditingTeacherIds] = useState<string[]>([])
+  const [editSaving, setEditSaving]             = useState(false)
 
   // 교사 반 배정 모달
   const [classModalOpen, setClassModalOpen]       = useState(false)
@@ -358,7 +359,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     }
   }
 
-  // ── 반 이름 수정 ──
+  // ── 반 이름 + 선생님 수정 ──
   const handleUpdateClassName = async (classId: string) => {
     const trimmed = editingName.trim()
     if (!trimmed) return
@@ -366,16 +367,16 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     try {
       const { error } = await supabase
         .from('classes')
-        .update({ name: trimmed })
+        .update({ name: trimmed, teacher_ids: editingTeacherIds })
         .eq('id', classId)
       if (error) throw error
-      setAllClassData(prev =>
-        prev.map(c => c.id === classId ? { ...c, name: trimmed } : c)
-            .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'))
-      )
-      buildTeacherClassMap(allClassData.map(c => c.id === classId ? { ...c, name: trimmed } : c))
+      const updated = allClassData.map(c =>
+        c.id === classId ? { ...c, name: trimmed, teacher_ids: editingTeacherIds } : c
+      ).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'))
+      setAllClassData(updated)
+      buildTeacherClassMap(updated)
       setEditingId(null)
-      showFeedback('반 이름이 수정되었습니다.', 'success')
+      showFeedback('반 정보가 수정되었습니다.', 'success')
     } catch (err: any) {
       showFeedback(`수정 실패: ${err.message}`, 'error')
     } finally {
@@ -970,27 +971,42 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                 allClassData.map(c => (
                   <div key={c.id} className={styles.classManageRow}>
                     {editingId === c.id ? (
-                      <>
+                      <div className={styles.classEditBlock}>
                         <input
                           className={styles.classEditInput}
                           value={editingName}
                           onChange={e => setEditingName(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') handleUpdateClassName(c.id); if (e.key === 'Escape') setEditingId(null) }}
+                          onKeyDown={e => { if (e.key === 'Escape') setEditingId(null) }}
                           autoFocus
+                          placeholder="반 이름"
                         />
+                        <div className={styles.classEditTeachers}>
+                          {teachers.map(t => (
+                            <label key={t.id} className={styles.classCreateTeacherItem}>
+                              <input
+                                type="checkbox"
+                                checked={editingTeacherIds.includes(t.id)}
+                                onChange={e => setEditingTeacherIds(prev =>
+                                  e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id)
+                                )}
+                              />
+                              {t.name}
+                            </label>
+                          ))}
+                        </div>
                         <div className={styles.cmRowActions}>
                           <button className={styles.cmSaveBtn} onClick={() => handleUpdateClassName(c.id)} disabled={editSaving || !editingName.trim()}>
                             {editSaving ? '…' : '저장'}
                           </button>
                           <button className={styles.cmCancelBtn} onClick={() => setEditingId(null)} disabled={editSaving}>취소</button>
                         </div>
-                      </>
+                      </div>
                     ) : (
                       <>
                         <span className={styles.cmRowName}>{c.name || '(이름 없음)'}</span>
                         <span className={styles.cmRowTeacher}>{getTeacherNames(c.teacher_ids)}</span>
                         <div className={styles.cmRowActions}>
-                          <button className={styles.cmEditBtn} onClick={() => { setEditingId(c.id); setEditingName(c.name || '') }}>수정</button>
+                          <button className={styles.cmEditBtn} onClick={() => { setEditingId(c.id); setEditingName(c.name || ''); setEditingTeacherIds(c.teacher_ids || []) }}>수정</button>
                           <button className={styles.cmDeleteBtn} onClick={() => handleDeleteClass(c.id, c.name || '반')}>삭제</button>
                         </div>
                       </>
