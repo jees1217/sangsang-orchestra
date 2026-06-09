@@ -4,10 +4,28 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './evaluations.module.css'
 
+const STATUS_CONFIG = {
+  PRESENT: { label: '출석', color: '#16a34a', bg: '#dcfce7' },
+  LATE:    { label: '지각', color: '#d97706', bg: '#fef3c7' },
+  ABSENT:  { label: '결석', color: '#dc2626', bg: '#fee2e2' },
+}
+
 interface Student {
   id: string
   name: string
-  classes?: { name: string }
+  cohort: number | null
+  instrument: string | null
+  classes: { name: string } | null
+  presentCount: number
+  lateCount: number
+  absentCount: number
+  attendanceRate: number
+}
+
+interface AttendanceRecord {
+  id: string
+  date: string
+  status: 'PRESENT' | 'LATE' | 'ABSENT'
 }
 
 interface Evaluation {
@@ -23,9 +41,10 @@ export default function EvaluationsPage() {
   const [userRole, setUserRole] = useState<string>('')
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [attendanceLogs, setAttendanceLogs] = useState<AttendanceRecord[]>([])
   const [history, setHistory] = useState<Evaluation[]>([])
-  
-  // 폼 상태
+  const [detailLoading, setDetailLoading] = useState(false)
+
   const [score, setScore] = useState<number>(5)
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
@@ -33,16 +52,8 @@ export default function EvaluationsPage() {
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchInitialData()
-  }, [])
-
-  // 학생을 선택하면 해당 학생의 평가 내역을 불러옴
-  useEffect(() => {
-    if (selectedStudent) {
-      fetchHistory(selectedStudent.id)
-    }
-  }, [selectedStudent])
+  useEffect(() => { fetchInitialData() }, [])
+  useEffect(() => { if (selectedStudent) loadDetail(selectedStudent.id) }, [selectedStudent])
 
   const fetchInitialData = async () => {
     try {
@@ -50,45 +61,61 @@ export default function EvaluationsPage() {
       if (!user) return
 
       const { data: userData } = await supabase
-        .from('users')
-        .select('role, name')
-        .eq('id', user.id)
-        .single()
-
+        .from('users').select('role, name').eq('id', user.id).single()
       if (!userData) return
-      
+
       setCurrentUser({ id: user.id, name: userData.name })
       setUserRole(userData.role)
 
-      // 권한별 학생 목록 불러오기 로직
-      let studentQuery = supabase
-        .from('users')
-        .select('id, name, classes(name)')
-        .eq('role', 'student')
-        .eq('is_active', true)
-        .order('name')
-
+      // 담당 학생 ID 범위 결정 (선생님은 본인 반 학생만)
+      let classIds: string[] | null = null
       if (userData.role === 'teacher') {
-        // 선생님: 본인이 담당하는 반(class)의 학생만 조회
         const { data: myClasses } = await supabase
-          .from('classes')
-          .select('id')
-          .filter('teacher_ids', 'cs', `{${user.id}}`)
-        
-        if (myClasses && myClasses.length > 0) {
-          const classIds = myClasses.map(c => c.id)
-          studentQuery = studentQuery.in('class_id', classIds)
-        } else {
-          // 담당하는 반이 없으면 빈 목록
-          setStudents([])
-          setLoading(false)
-          return
+          .from('classes').select('id').filter('teacher_ids', 'cs', `{${user.id}}`)
+        if (!myClasses || myClasses.length === 0) {
+          setStudents([]); setLoading(false); return
         }
+        classIds = myClasses.map(c => c.id)
       }
 
-      const { data: studentsData } = await studentQuery
-      // TypeScript 에러 방지를 위해 as any 추가
-      setStudents((studentsData as any) || [])
+      // 학생 목록
+      let q = supabase
+        .from('users')
+        .select('id, name, cohort, instrument, classes:class_id(name)')
+        .eq('role', 'student').eq('is_active', true).order('name')
+      if (classIds) q = q.in('class_id', classIds)
+      const { data: studentsData } = await q
+
+      // 최근 30일 출석 집계
+      const thirtyAgo = new Date()
+      thirtyAgo.setDate(thirtyAgo.getDate() - 30)
+      const thirtyAgoStr = thirtyAgo.toISOString().split('T')[0]
+      const allIds = (studentsData || []).map((s: any) => s.id)
+
+      const attMap: Record<string, { present: number; late: number; absent: number }> = {}
+      if (allIds.length > 0) {
+        const { data: attRows } = await supabase
+          .from('attendances').select('student_id, status')
+          .in('student_id', allIds).gte('date', thirtyAgoStr)
+        ;(attRows || []).forEach((a: any) => {
+          if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0 }
+          if (a.status === 'PRESENT') attMap[a.student_id].present++
+          else if (a.status === 'LATE') attMap[a.student_id].late++
+          else if (a.status === 'ABSENT') attMap[a.student_id].absent++
+        })
+      }
+
+      const list: Student[] = (studentsData || []).map((u: any) => {
+        const att = attMap[u.id] || { present: 0, late: 0, absent: 0 }
+        const total = att.present + att.late + att.absent
+        return {
+          id: u.id, name: u.name, cohort: u.cohort, instrument: u.instrument,
+          classes: u.classes,
+          presentCount: att.present, lateCount: att.late, absentCount: att.absent,
+          attendanceRate: total > 0 ? Math.round((att.present / total) * 100) : 0,
+        }
+      })
+      setStudents(list)
     } catch (error) {
       console.error('데이터 로딩 실패:', error)
     } finally {
@@ -96,40 +123,37 @@ export default function EvaluationsPage() {
     }
   }
 
-  const fetchHistory = async (studentId: string) => {
-    const { data } = await supabase
-      .from('evaluations')
-      .select(`
-        id, score, comment, created_at,
-        writer:writer_id(name)
-      `)
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false })
-      
-    setHistory((data as any) || [])
+  const loadDetail = async (studentId: string) => {
+    setDetailLoading(true)
+    try {
+      const [{ data: attData }, { data: evalData }] = await Promise.all([
+        supabase.from('attendances')
+          .select('id, date, status').eq('student_id', studentId)
+          .order('date', { ascending: false }).limit(20),
+        supabase.from('evaluations')
+          .select('id, score, comment, created_at, writer:writer_id(name)')
+          .eq('student_id', studentId).order('created_at', { ascending: false }),
+      ])
+      setAttendanceLogs((attData as any) || [])
+      setHistory((evalData as any) || [])
+    } finally {
+      setDetailLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedStudent || !currentUser) return
     setIsSubmitting(true)
-
     try {
-      const { error } = await supabase
-        .from('evaluations')
-        .insert({
-          student_id: selectedStudent.id,
-          writer_id: currentUser.id,
-          score: score,
-          comment: comment.trim()
-        })
-
+      const { error } = await supabase.from('evaluations').insert({
+        student_id: selectedStudent.id, writer_id: currentUser.id,
+        score, comment: comment.trim(),
+      })
       if (error) throw error
-
       alert('평가가 성공적으로 등록되었습니다.')
-      setScore(5)
-      setComment('')
-      fetchHistory(selectedStudent.id) // 내역 새로고침
+      setScore(5); setComment('')
+      loadDetail(selectedStudent.id)
     } catch (error) {
       console.error('평가 등록 실패:', error)
       alert('평가 등록 중 오류가 발생했습니다.')
@@ -138,37 +162,20 @@ export default function EvaluationsPage() {
     }
   }
 
-  // 관리자/디렉터용: 전체 평가 내역 CSV 엑셀 다운로드
   const handleDownloadCSV = async () => {
     try {
-      const { data, error } = await supabase
-        .from('evaluations')
-        .select(`
-          score, comment, created_at,
-          student:student_id(name),
-          writer:writer_id(name)
-        `)
+      const { data, error } = await supabase.from('evaluations')
+        .select('score, comment, created_at, student:student_id(name), writer:writer_id(name)')
         .order('created_at', { ascending: false })
-
       if (error) throw error
       if (!data || data.length === 0) return alert('다운로드할 데이터가 없습니다.')
-
-      // CSV 헤더
-      let csvContent = "작성일시,학생 이름,수업 점수(5점 만점),평가자(선생님),코멘트/특이사항\n"
-      
+      let csv = '작성일시,학생 이름,수업 점수(5점 만점),평가자(선생님),코멘트/특이사항\n'
       data.forEach((row: any) => {
         const date = new Date(row.created_at).toLocaleDateString()
-        const studentName = row.student?.name || '알 수 없음'
-        const writerName = row.writer?.name || '알 수 없음'
-        // 코멘트에 쉼표나 줄바꿈이 있을 경우를 대비해 큰따옴표로 감쌈
         const safeComment = `"${(row.comment || '').replace(/"/g, '""')}"`
-        
-        csvContent += `${date},${studentName},${row.score}점,${writerName},${safeComment}\n`
+        csv += `${date},${row.student?.name || '알 수 없음'},${row.score}점,${row.writer?.name || '알 수 없음'},${safeComment}\n`
       })
-
-      // 한글 깨짐 방지를 위한 UTF-8 BOM 추가
-      const BOM = '\uFEFF'
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
       link.download = `강의평가_전체내역_${new Date().toISOString().split('T')[0]}.csv`
@@ -180,69 +187,130 @@ export default function EvaluationsPage() {
   }
 
   if (loading) return <div className={styles.loading}>데이터를 불러오는 중입니다...</div>
-
-  // 학생 계정은 이 페이지 접근 불가 처리 (안전장치)
   if (userRole === 'student') return <div className={styles.empty}>접근 권한이 없습니다.</div>
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>강의 평가 (수업 일지)</h1>
-        {/* 관리자와 디렉터만 CSV 다운로드 버튼 보임 */}
+        <div>
+          <h1 className={styles.title}>출결 / 평가 관리</h1>
+          <p className={styles.subtitle}>학생 {students.length}명 · 최근 30일 출석 기준</p>
+        </div>
         {(userRole === 'admin' || userRole === 'director') && (
           <button onClick={handleDownloadCSV} className={styles.csvBtn}>
-            ⬇ 전체 내역 다운로드 (CSV)
+            ⬇ 전체 평가 내역 (CSV)
           </button>
         )}
       </div>
 
       <div className={styles.layout}>
-        {/* 왼쪽: 학생 목록 */}
+        {/* ── 왼쪽: 학생 목록 ── */}
         <div className={styles.studentList}>
-          <div className={styles.listHeader}>평가 대상 학생 ({students.length}명)</div>
+          <div className={styles.listHeader}>학생 목록 ({students.length}명)</div>
           {students.length === 0 ? (
             <div className={styles.empty} style={{ padding: '20px' }}>담당 학생이 없습니다.</div>
-          ) : (
-            students.map(student => (
-              <div 
-                key={student.id} 
-                className={`${styles.studentItem} ${selectedStudent?.id === student.id ? styles.studentItemActive : ''}`}
-                onClick={() => setSelectedStudent(student)}
+          ) : students.map(s => {
+            const rateColor = s.attendanceRate >= 80 ? '#16a34a' : s.attendanceRate >= 60 ? '#d97706' : '#dc2626'
+            return (
+              <div
+                key={s.id}
+                className={`${styles.studentItem} ${selectedStudent?.id === s.id ? styles.studentItemActive : ''}`}
+                onClick={() => setSelectedStudent(s)}
               >
-                <div className={styles.studentName}>{student.name}</div>
-                <div className={styles.className}>{student.classes?.name || '소속 반 없음'}</div>
+                <div className={styles.studentItemMain}>
+                  <div className={styles.studentName}>{s.name}</div>
+                  <div className={styles.studentTags}>
+                    {s.instrument && <span className={styles.tag}>{s.instrument}</span>}
+                    {s.cohort && <span className={styles.tag}>{s.cohort}기</span>}
+                  </div>
+                  <div className={styles.className}>{s.classes?.name || '소속 반 없음'}</div>
+                </div>
+                <div className={styles.rateWrap}>
+                  <span className={styles.rateNum} style={{ color: rateColor }}>{s.attendanceRate}%</span>
+                  <span className={styles.rateLabel}>출석률</span>
+                </div>
               </div>
-            ))
-          )}
+            )
+          })}
         </div>
 
-        {/* 오른쪽: 평가 작성 폼 및 과거 내역 */}
+        {/* ── 오른쪽: 상세 패널 ── */}
         <div className={styles.mainContent}>
-          {selectedStudent ? (
+          {!selectedStudent ? (
+            <div className={styles.card} style={{ textAlign: 'center', color: '#a0aec0', padding: '60px 0' }}>
+              왼쪽 명단에서 학생을 선택해주세요.
+            </div>
+          ) : detailLoading ? (
+            <div className={styles.loading}>정보를 불러오는 중...</div>
+          ) : (
             <>
-              {/* 평가 작성 폼 */}
+              {/* 프로필 헤더 */}
+              <div className={styles.profileHeader}>
+                <div className={styles.profileAvatar}>{selectedStudent.name.charAt(0)}</div>
+                <div className={styles.profileInfo}>
+                  <div className={styles.profileName}>{selectedStudent.name}</div>
+                  <div className={styles.profileTags}>
+                    {selectedStudent.instrument && <span className={styles.profileTag}>{selectedStudent.instrument}</span>}
+                    {selectedStudent.cohort && <span className={styles.profileTag}>{selectedStudent.cohort}기</span>}
+                    {selectedStudent.classes?.name && <span className={styles.profileTag}>{selectedStudent.classes.name}</span>}
+                  </div>
+                </div>
+                <div className={styles.profileStats}>
+                  <div className={styles.profileStat}>
+                    <span className={styles.profileStatNum} style={{ color: '#16a34a' }}>{selectedStudent.presentCount}</span>
+                    <span className={styles.profileStatLabel}>출석</span>
+                  </div>
+                  <div className={styles.profileStat}>
+                    <span className={styles.profileStatNum} style={{ color: '#d97706' }}>{selectedStudent.lateCount}</span>
+                    <span className={styles.profileStatLabel}>지각</span>
+                  </div>
+                  <div className={styles.profileStat}>
+                    <span className={styles.profileStatNum} style={{ color: '#dc2626' }}>{selectedStudent.absentCount}</span>
+                    <span className={styles.profileStatLabel}>결석</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 출결 현황 섹션 ── */}
               <div className={styles.card}>
-                <h2 className={styles.cardTitle}>{selectedStudent.name} 학생 평가 작성</h2>
+                <h2 className={styles.sectionTitle}>📅 출결 현황 <span className={styles.sectionSub}>최근 20회</span></h2>
+                {attendanceLogs.length === 0 ? (
+                  <div className={styles.emptySmall}>출석 기록이 없습니다.</div>
+                ) : (
+                  <div className={styles.attendanceGrid}>
+                    {attendanceLogs.map(a => {
+                      const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
+                      const label = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' })
+                      return (
+                        <div key={a.id} className={styles.attChip}>
+                          <span className={styles.attDate}>{label}</span>
+                          <span className={styles.attStatus} style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ── 평가 등록 섹션 ── */}
+              <div className={styles.card}>
+                <h2 className={styles.sectionTitle}>✏️ 평가 등록</h2>
                 <form onSubmit={handleSubmit}>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>수업 점수 (5점 만점)</label>
-                    <select 
-                      value={score} 
-                      onChange={(e) => setScore(Number(e.target.value))} 
-                      className={styles.select}
-                    >
-                      <option value={5}>⭐⭐⭐⭐⭐ (5점 - 매우 우수)</option>
-                      <option value={4}>⭐⭐⭐⭐ (4점 - 우수)</option>
-                      <option value={3}>⭐⭐⭐ (3점 - 보통)</option>
-                      <option value={2}>⭐⭐ (2점 - 미흡)</option>
-                      <option value={1}>⭐ (1점 - 매우 미흡)</option>
+                    <select value={score} onChange={e => setScore(Number(e.target.value))} className={styles.select}>
+                      <option value={5}>⭐⭐⭐⭐⭐ 5점 — 매우 우수</option>
+                      <option value={4}>⭐⭐⭐⭐ 4점 — 우수</option>
+                      <option value={3}>⭐⭐⭐ 3점 — 보통</option>
+                      <option value={2}>⭐⭐ 2점 — 미흡</option>
+                      <option value={1}>⭐ 1점 — 매우 미흡</option>
                     </select>
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>수업 태도 및 특이사항</label>
-                    <textarea 
+                    <textarea
                       value={comment}
-                      onChange={(e) => setComment(e.target.value)}
+                      onChange={e => setComment(e.target.value)}
                       placeholder="오늘 수업에서의 태도, 진도, 칭찬할 점이나 보완할 점을 자유롭게 적어주세요."
                       className={styles.textarea}
                       required
@@ -254,29 +322,23 @@ export default function EvaluationsPage() {
                 </form>
               </div>
 
-              {/* 과거 평가 내역 */}
+              {/* ── 평가 내역 섹션 ── */}
               <div className={styles.card}>
-                <h2 className={styles.cardTitle}>과거 평가 내역</h2>
+                <h2 className={styles.sectionTitle}>📝 평가 내역 <span className={styles.sectionSub}>{history.length}건</span></h2>
                 {history.length === 0 ? (
-                  <div className={styles.empty}>아직 등록된 평가 내역이 없습니다.</div>
-                ) : (
-                  history.map(item => (
-                    <div key={item.id} className={styles.historyItem}>
-                      <div className={styles.historyHeader}>
-                        <span className={styles.historyScore}>{"⭐".repeat(item.score)} ({item.score}점)</span>
-                        <span className={styles.historyDate}>{new Date(item.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <div style={{ fontSize: '14px', lineHeight: '1.5' }}>{item.comment}</div>
-                      <span className={styles.historyWriter}>작성자: {item.writer?.name || '알 수 없음'}</span>
+                  <div className={styles.emptySmall}>아직 등록된 평가 내역이 없습니다.</div>
+                ) : history.map(item => (
+                  <div key={item.id} className={styles.historyItem}>
+                    <div className={styles.historyHeader}>
+                      <span className={styles.historyScore}>{'⭐'.repeat(item.score)} ({item.score}점)</span>
+                      <span className={styles.historyDate}>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
+                      <span className={styles.historyWriter}>{(item.writer as any)?.name || '알 수 없음'} 선생님</span>
                     </div>
-                  ))
-                )}
+                    <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#2d3748' }}>{item.comment}</div>
+                  </div>
+                ))}
               </div>
             </>
-          ) : (
-            <div className={styles.card} style={{ textAlign: 'center', color: '#a0aec0', padding: '60px 0' }}>
-              왼쪽 명단에서 평가할 학생을 선택해주세요.
-            </div>
           )}
         </div>
       </div>
