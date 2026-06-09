@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import styles from './student.module.css'
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  online:          { label: '온라인 수업',   icon: '💻', color: '#00897B', bg: '#E6F7F6' },
+  online:          { label: '온라인 클래스', icon: '💻', color: '#00897B', bg: '#E6F7F6' },
   offline:         { label: '오프라인 합주', icon: '🎻', color: '#2B6CB0', bg: '#EBF8FF' },
   special_lecture: { label: '명사 특강',     icon: '🎓', color: '#6B46C1', bg: '#FAF5FF' },
   camp:            { label: '음악 캠프',     icon: '🏕️', color: '#C05621', bg: '#FFFAF0' },
@@ -73,8 +73,10 @@ export default async function StudentDashboard() {
     supabase
       .from('schedules')
       .select('*, teacher:teacher_id(name)')
-      .eq('schedule_date', todayStr)
-      .order('start_time', { ascending: true }),
+      .gte('schedule_date', todayStr)
+      .order('schedule_date', { ascending: true })
+      .order('start_time', { ascending: true })
+      .limit(20),
     supabase
       .from('notices')
       .select('*, writer:writer_id(name)')
@@ -88,9 +90,9 @@ export default async function StudentDashboard() {
       .limit(20),
   ])
 
-  const todaySchedules = (rawSchedules || []).filter(isForMe)
-  const myAssignments  = (rawAssignments || []).filter(isForMe).slice(0, 5)
-  const myNotices      = (rawNotices || []).filter(isForMe).slice(0, 3)
+  const upcomingSchedules = (rawSchedules || []).filter(isForMe).slice(0, 5)
+  const myAssignments     = (rawAssignments || []).filter(isForMe).slice(0, 5)
+  const myNotices         = (rawNotices || []).filter(isForMe).slice(0, 3)
 
   return (
     <div className={styles.container}>
@@ -115,27 +117,35 @@ export default async function StudentDashboard() {
       {/* ── 3열 카드 그리드 ── */}
       <div className={styles.grid}>
 
-        {/* 카드 1: 오늘의 일정 */}
+        {/* 카드 1: 나의 일정 */}
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>
             <span>📅</span>
-            오늘의 일정
-            <span className={styles.badge}>{todaySchedules.length}건</span>
+            나의 일정
+            <span className={styles.badge}>{upcomingSchedules.length}건</span>
           </h2>
 
-          {todaySchedules.length === 0 ? (
+          {upcomingSchedules.length === 0 ? (
             <div className={styles.empty}>
               <span className={styles.emptyIcon}>🎵</span>
-              <p>오늘은 일정이 없어요.<br />개인 연습에 집중해 보세요!</p>
+              <p>다가오는 일정이 없어요.<br />개인 연습에 집중해 보세요!</p>
             </div>
           ) : (
             <ul className={styles.scheduleList}>
-              {todaySchedules.map(sc => {
+              {upcomingSchedules.map(sc => {
                 const cfg = TYPE_CONFIG[sc.schedule_type] ?? { label: sc.schedule_type, icon: '📌', color: '#475569', bg: '#F1F5F9' }
                 const isLink = sc.location?.startsWith('http')
+                const dateStr = sc.schedule_date.substring(0, 10)
+                const isToday = dateStr === todayStr
+                const dateLabel = isToday
+                  ? '오늘'
+                  : new Date(dateStr + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
                 return (
                   <li key={sc.id} className={styles.scheduleItem}>
-                    <div className={styles.scheduleTime}>{sc.start_time.substring(0, 5)}</div>
+                    <div className={styles.scheduleTime}>
+                      <div className={isToday ? styles.scheduleDateToday : styles.scheduleDate}>{dateLabel}</div>
+                      <div>{sc.start_time.substring(0, 5)}</div>
+                    </div>
                     <div className={styles.scheduleBody}>
                       <span
                         className={styles.typeBadge}
