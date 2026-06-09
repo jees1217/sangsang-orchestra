@@ -51,6 +51,13 @@ type CsvRow = {
   cohort: string
   instrument: string
   is_active: boolean
+  birth_date: string
+  grade: string
+  phone: string
+  guardian: string
+  guardian_phone: string
+  address: string
+  note: string
   errors: string[]
 }
 
@@ -246,13 +253,20 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
     const headers = parseCsvLine(lines[0]).map(h => h.trim())
     const idx = {
-      name:       headers.findIndex(h => h === '이름'),
-      email:      headers.findIndex(h => h === '이메일'),
-      password:   headers.findIndex(h => h === '비밀번호'),
-      role:       headers.findIndex(h => ['역할', 'role'].includes(h)),
-      cohort:     headers.findIndex(h => ['기수', 'cohort'].includes(h)),
-      instrument: headers.findIndex(h => ['악기', 'instrument'].includes(h)),
-      is_active:  headers.findIndex(h => ['활성여부', 'is_active'].includes(h)),
+      name:           headers.findIndex(h => h === '이름'),
+      email:          headers.findIndex(h => h === '이메일'),
+      password:       headers.findIndex(h => h === '비밀번호'),
+      role:           headers.findIndex(h => ['역할', 'role', '권한'].includes(h)),
+      cohort:         headers.findIndex(h => ['기수', 'cohort'].includes(h)),
+      instrument:     headers.findIndex(h => ['악기', 'instrument'].includes(h)),
+      is_active:      headers.findIndex(h => ['활성여부', 'is_active'].includes(h)),
+      birth_date:     headers.findIndex(h => ['생년월일', 'birth_date'].includes(h)),
+      grade:          headers.findIndex(h => ['학년', 'grade'].includes(h)),
+      phone:          headers.findIndex(h => ['연락처', 'phone'].includes(h)),
+      guardian:       headers.findIndex(h => ['보호자', 'guardian'].includes(h)),
+      guardian_phone: headers.findIndex(h => ['보호자 연락처', 'guardian_phone'].includes(h)),
+      address:        headers.findIndex(h => ['주소', 'address'].includes(h)),
+      note:           headers.findIndex(h => ['비고', 'note'].includes(h)),
     }
 
     const roleMap: Record<string, string> = {
@@ -266,15 +280,22 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       const cells = parseCsvLine(line)
       const get   = (j: number) => j >= 0 ? (cells[j] || '').trim() : ''
 
-      const name       = get(idx.name)
-      const email      = get(idx.email)
-      const password   = get(idx.password) || 'sangsang1234!'
-      const rawRole    = get(idx.role)
-      const role       = roleMap[rawRole] || 'student'
-      const cohort     = get(idx.cohort)
-      const instrument = get(idx.instrument)
-      const rawActive  = get(idx.is_active)
-      const is_active  = rawActive === '비활성' ? false : true
+      const name          = get(idx.name)
+      const email         = get(idx.email)
+      const password      = get(idx.password) || 'sangsang1234!'
+      const rawRole       = get(idx.role)
+      const role          = roleMap[rawRole] || 'student'
+      const cohort        = get(idx.cohort)
+      const instrument    = get(idx.instrument)
+      const rawActive     = get(idx.is_active)
+      const is_active     = rawActive === '비활성' ? false : true
+      const birth_date    = get(idx.birth_date)
+      const grade         = get(idx.grade)
+      const phone         = get(idx.phone)
+      const guardian      = get(idx.guardian)
+      const guardian_phone = get(idx.guardian_phone)
+      const address       = get(idx.address)
+      const note          = get(idx.note)
 
       const errors: string[] = []
       if (!name)  errors.push('이름 필수')
@@ -282,7 +303,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('이메일 형식 오류')
       if (password.length < 6) errors.push('비밀번호 6자 이상')
 
-      return { rowNum: i + 2, name, email, password, role, cohort, instrument, is_active, errors }
+      return { rowNum: i + 2, name, email, password, role, cohort, instrument, is_active,
+               birth_date, grade, phone, guardian, guardian_phone, address, note, errors }
     }).filter(row => row.name || row.email)
   }
 
@@ -595,26 +617,53 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     setImportProgress(0)
     const results: ImportResult[] = []
 
+    const privatePayload = (row: CsvRow) => ({
+      is_active:      row.is_active,
+      birth_date:     row.birth_date     || null,
+      grade:          row.grade          || null,
+      phone:          row.phone          || null,
+      guardian:       row.guardian       || null,
+      guardian_phone: row.guardian_phone || null,
+      address:        row.address        || null,
+      note:           row.note           || null,
+    })
+
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i]
+      const existingUser = users.find(u => u.email === row.email)
+
       try {
-        const res  = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email:      row.email,
-            password:   row.password,
-            name:       row.name,
-            role:       row.role,
-            cohort:     row.cohort ? Number(row.cohort) : null,
-            instrument: row.instrument || null,
-            is_active:  row.is_active,
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || '오류')
-        results.push({ rowNum: row.rowNum, name: row.name, email: row.email, status: 'success' })
-        setUsers(prev => [data.user, ...prev])
+        if (existingUser) {
+          // 기존 단원 — 개인정보 갱신
+          const res  = await fetch('/api/users/private', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: existingUser.id, ...privatePayload(row) }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error || '오류')
+          setUsers(prev => prev.map(u => u.id === existingUser.id ? { ...u, ...data.user } : u))
+          results.push({ rowNum: row.rowNum, name: row.name, email: row.email, status: 'success', message: '정보 업데이트' })
+        } else {
+          // 신규 단원 — 계정 생성
+          const res  = await fetch('/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email:      row.email,
+              password:   row.password,
+              name:       row.name,
+              role:       row.role,
+              cohort:     row.cohort ? Number(row.cohort) : null,
+              instrument: row.instrument || null,
+              ...privatePayload(row),
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error || '오류')
+          setUsers(prev => [data.user, ...prev])
+          results.push({ rowNum: row.rowNum, name: row.name, email: row.email, status: 'success', message: '신규 추가' })
+        }
       } catch (err: any) {
         results.push({ rowNum: row.rowNum, name: row.name, email: row.email, status: 'error', message: err.message })
       }
@@ -1113,7 +1162,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                   {importResults.map(r => (
                     <div key={r.rowNum} className={r.status === 'success' ? styles.importResultOk : styles.importResultFail}>
                       <span>{r.name} <span style={{ fontSize: 12, opacity: 0.7 }}>({r.email})</span></span>
-                      <span>{r.status === 'success' ? '✓ 완료' : `✗ ${r.message}`}</span>
+                      <span>{r.status === 'success' ? `✓ ${r.message || '완료'}` : `✗ ${r.message}`}</span>
                     </div>
                   ))}
                 </div>

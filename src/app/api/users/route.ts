@@ -12,7 +12,8 @@ const supabaseAdmin = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name, role, cohort, instrument, is_active } = body;
+    const { email, password, name, role, cohort, instrument, is_active,
+            birth_date, grade, phone, guardian, guardian_phone, address, note } = body;
 
     // 1. 수파베이스 Auth에 계정 생성
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -28,12 +29,19 @@ export async function POST(request: Request) {
       .from('users')
       .upsert({
         id: authData.user.id,
-        email: email,
-        name: name,
+        email,
+        name,
         role: role || 'student',
         cohort: cohort ? Number(cohort) : null,
         instrument: instrument ? instrument.trim() : null,
         is_active: is_active !== false,
+        birth_date:     birth_date     || null,
+        grade:          grade          || null,
+        phone:          phone          || null,
+        guardian:       guardian       || null,
+        guardian_phone: guardian_phone || null,
+        address:        address        || null,
+        note:           note           || null,
       })
       .select()
       .single();
