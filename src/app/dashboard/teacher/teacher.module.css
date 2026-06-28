@@ -49,6 +49,14 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   align-items: start;
+  margin-bottom: 20px;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  align-items: start;
 }
 
 /* ── 공통 카드 ── */
@@ -363,19 +371,12 @@
    반응형 (960px: 2열 / 768px: 1열)
 ══════════════════════════════════════ */
 @media (max-width: 960px) {
-  .grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .grid > :last-child {
-    grid-column: 1 / -1;
-  }
+  .grid  { grid-template-columns: 1fr 1fr; }
+  .grid2 { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 768px) {
-  .container {
-    padding: 16px;
-  }
+  .container { padding: 16px; }
 
   .welcomeBanner {
     padding: 20px;
@@ -384,29 +385,12 @@
     gap: 8px;
   }
 
-  .welcomeGreeting {
-    font-size: 18px;
-  }
+  .welcomeGreeting { font-size: 18px; }
+  .welcomeDate { font-size: 13px; text-align: left; }
 
-  .welcomeDate {
-    font-size: 13px;
-    text-align: left;
-  }
+  .grid  { grid-template-columns: 1fr; }
+  .grid2 { grid-template-columns: 1fr; }
 
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
-  .grid > :last-child {
-    grid-column: auto;
-  }
-
-  .card {
-    padding: 18px 16px;
-    border-radius: 16px;
-  }
-
-  .attendanceCount {
-    font-size: 16px;
-  }
+  .card { padding: 18px 16px; border-radius: 16px; }
+  .attendanceCount { font-size: 16px; }
 }

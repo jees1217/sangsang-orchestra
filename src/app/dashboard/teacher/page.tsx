@@ -148,7 +148,7 @@ export default async function TeacherDashboard() {
         <div className={styles.welcomeDate}>{todayDisplay}</div>
       </div>
 
-      {/* ── 3열 카드 그리드 ── */}
+      {/* ── 상단 3열 그리드 ── */}
       <div className={styles.grid}>
 
         {/* ── 카드 1: 오늘의 수업 ── */}
@@ -285,6 +285,11 @@ export default async function TeacherDashboard() {
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>출결/평가 관리 →</a>
         </div>
+
+      </div>
+
+      {/* ── 하단 2열 그리드 ── */}
+      <div className={styles.grid2}>
 
         {/* ── 카드 4: 과제 ── */}
         <div className={styles.card}>
