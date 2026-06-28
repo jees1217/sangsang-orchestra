@@ -12,13 +12,6 @@ const SCHEDULE_TYPE_CONFIG: Record<string, { label: string; icon: string; color:
   ot:              { label: '오리엔테이션',  icon: '👋', color: '#475569', bg: '#F1F5F9' },
 }
 
-const QUICK_MENUS = [
-  { label: '+ 공지사항 작성',    href: '/dashboard/notices',     style: 'primary' },
-  { label: '단원 명부',          href: '/dashboard/members',     style: 'outline' },
-  { label: '출결/평가 CSV 다운', href: '/dashboard/evaluations', style: 'outline' },
-  { label: '전체 통계',          href: '/dashboard/admin/stats', style: 'outline' },
-]
-
 function getDaysFromToday(dateStr: string): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -67,47 +60,69 @@ export default async function AdminDashboard() {
     { data: rawAttendances },
     { data: rawEvals },
     { data: rawSchedules },
+    { data: rawNotices },
+    { data: rawAssignments },
   ] = await Promise.all([
     supabase.from('users').select('id').eq('role', 'student'),
     supabase.from('users').select('id').eq('role', 'teacher'),
 
-    // 최근 30일 전체 출석 기록
     supabase
       .from('attendances')
       .select('status, date, student:student_id(name)')
       .gte('date', thirtyDaysAgoStr)
       .order('date', { ascending: false }),
 
-    // 최신 강의평가 5건
     supabase
       .from('evaluations')
       .select('id, score, comment, created_at, writer:writer_id(name), student:student_id(name)')
       .order('created_at', { ascending: false })
       .limit(5),
 
-    // 다가오는 일정 2건
     supabase
       .from('schedules')
       .select('id, title, schedule_type, schedule_date, start_time, location')
       .gte('schedule_date', todayStr)
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
-      .limit(2),
+      .limit(10),
+
+    supabase
+      .from('notices')
+      .select('id, title, created_at, writer_id')
+      .eq('type', 'notice')
+      .order('created_at', { ascending: false })
+      .limit(5),
+
+    supabase
+      .from('notices')
+      .select('id, title, due_date, writer_id')
+      .eq('type', 'assignment')
+      .order('due_date', { ascending: true })
+      .limit(5),
   ])
 
-  const studentCount  = (rawStudents  || []).length
-  const teacherCount  = (rawTeachers  || []).length
-  const attendances   = rawAttendances || []
-  const evaluations   = rawEvals       || []
-  const schedules     = rawSchedules   || []
+  // 공지/과제 작성자 이름 조회
+  const writerIds = [...new Set([
+    ...(rawNotices || []).map((n: any) => n.writer_id),
+    ...(rawAssignments || []).map((a: any) => a.writer_id),
+  ].filter(Boolean))]
+  const { data: writerRows } = writerIds.length > 0
+    ? await supabase.from('users').select('id, name').in('id', writerIds)
+    : { data: [] }
+  const userMap: Record<string, string> = {}
+  ;(writerRows || []).forEach((u: any) => { userMap[u.id] = u.name })
 
-  // 출결 집계
+  const studentCount = (rawStudents  || []).length
+  const teacherCount = (rawTeachers  || []).length
+  const attendances  = rawAttendances || []
+  const evaluations  = rawEvals       || []
+  const schedules    = rawSchedules   || []
+
   const present = attendances.filter((a: any) => a.status === 'PRESENT').length
   const late    = attendances.filter((a: any) => a.status === 'LATE').length
   const absent  = attendances.filter((a: any) => a.status === 'ABSENT').length
   const total   = attendances.length
 
-  // 결석자 최근 10건
   const recentAbsences = attendances
     .filter((a: any) => a.status === 'ABSENT')
     .slice(0, 10)
@@ -128,7 +143,7 @@ export default async function AdminDashboard() {
         <div className={styles.welcomeDate}>{todayDisplay}</div>
       </div>
 
-      {/* ── 3열 카드 그리드 ── */}
+      {/* ── 상단 3열 그리드 ── */}
       <div className={styles.grid}>
 
         {/* ── 카드 1: 전체 출결 현황 ── */}
@@ -223,34 +238,44 @@ export default async function AdminDashboard() {
           <a href="/dashboard/evaluations" className={styles.moreLink}>전체 평가 내역 & CSV 다운로드 →</a>
         </div>
 
-        {/* ── 카드 3: 일정 & 퀵 메뉴 ── */}
+        {/* ── 카드 3: 전체 일정 ── */}
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>
             <span>🗓</span>
-            다음 일정 & 퀵 메뉴
+            전체 일정
+            {schedules.length > 0 && (
+              <span className={styles.badge}>{schedules.length}건</span>
+            )}
           </h2>
 
           {schedules.length === 0 ? (
-            <div className={styles.emptySmall}>예정된 일정이 없습니다.</div>
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>📅</span>
+              <p>예정된 일정이 없습니다.</p>
+            </div>
           ) : (
-            <ul className={styles.miniScheduleList}>
+            <ul className={styles.scheduleList}>
               {schedules.map((sc: any) => {
                 const cfg = SCHEDULE_TYPE_CONFIG[sc.schedule_type] ?? {
                   label: sc.schedule_type, icon: '📌', color: '#475569', bg: '#F1F5F9',
                 }
                 const daysLeft = getDaysFromToday(sc.schedule_date)
+                const dateLabel = new Date(sc.schedule_date + 'T00:00:00').toLocaleDateString('ko-KR', {
+                  month: 'numeric', day: 'numeric', weekday: 'short',
+                })
                 return (
-                  <li key={sc.id} className={styles.miniScheduleItem}>
-                    <span className={`${styles.miniDays} ${daysLeft === 0 ? styles.daysToday : daysLeft <= 7 ? styles.daysSoon : ''}`}>
+                  <li key={sc.id} className={styles.scheduleItem}>
+                    <span className={`${styles.daysChip} ${daysLeft === 0 ? styles.daysToday : daysLeft <= 7 ? styles.daysSoon : ''}`}>
                       {daysLeft === 0 ? '오늘' : `D-${daysLeft}`}
                     </span>
-                    <div className={styles.miniScheduleBody}>
-                      <span className={styles.miniScheduleType} style={{ color: cfg.color }}>{cfg.icon}</span>
-                      <div>
-                        <div className={styles.miniScheduleTitle}>{sc.title}</div>
-                        {sc.location && (
-                          <div className={styles.miniScheduleMeta}>📍 {sc.location}</div>
-                        )}
+                    <div className={styles.scheduleBody}>
+                      <div className={styles.scheduleTop}>
+                        <span style={{ color: cfg.color }}>{cfg.icon}</span>
+                        <span className={styles.scheduleTitle}>{sc.title}</span>
+                      </div>
+                      <div className={styles.scheduleMeta}>
+                        <span>{dateLabel} {sc.start_time.substring(0, 5)}</span>
+                        {sc.location && <span>📍 {sc.location}</span>}
                       </div>
                     </div>
                   </li>
@@ -259,21 +284,80 @@ export default async function AdminDashboard() {
             </ul>
           )}
 
-          <a href="/dashboard/schedules" className={styles.scheduleMoreLink}>전체 일정 보기 →</a>
+          <a href="/dashboard/schedules" className={styles.moreLink}>전체 일정 관리 →</a>
+        </div>
 
-          <div className={styles.divider} />
+      </div>
 
-          <div className={styles.quickMenuGrid}>
-            {QUICK_MENUS.map(menu => (
-              <a
-                key={menu.href}
-                href={menu.href}
-                className={menu.style === 'primary' ? styles.quickBtnPrimary : styles.quickBtnOutline}
-              >
-                {menu.label}
-              </a>
-            ))}
-          </div>
+      {/* ── 하단 2열 그리드 ── */}
+      <div className={styles.grid2}>
+
+        {/* ── 카드 4: 공지사항 ── */}
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>
+            <span>📢</span>
+            공지사항
+            {(rawNotices || []).length > 0 && (
+              <span className={styles.badge}>{(rawNotices || []).length}건</span>
+            )}
+          </h2>
+
+          {(rawNotices || []).length === 0 ? (
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>📭</span>
+              <p>등록된 공지사항이 없습니다.</p>
+            </div>
+          ) : (
+            <ul className={styles.noticeList}>
+              {(rawNotices || []).map((n: any) => (
+                <li key={n.id} className={styles.noticeItem}>
+                  <div className={styles.noticeTitle}>{n.title}</div>
+                  <div className={styles.noticeMeta}>
+                    <span>{userMap[n.writer_id] || '알 수 없음'}</span>
+                    <span>{new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <a href="/dashboard/notices" className={styles.moreLink}>공지 관리 →</a>
+        </div>
+
+        {/* ── 카드 5: 과제 ── */}
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>
+            <span>📋</span>
+            과제
+            {(rawAssignments || []).length > 0 && (
+              <span className={styles.badge}>{(rawAssignments || []).length}건</span>
+            )}
+          </h2>
+
+          {(rawAssignments || []).length === 0 ? (
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>✅</span>
+              <p>등록된 과제가 없습니다.</p>
+            </div>
+          ) : (
+            <ul className={styles.noticeList}>
+              {(rawAssignments || []).map((a: any) => (
+                <li key={a.id} className={styles.noticeItem}>
+                  <div className={styles.noticeTitle}>{a.title}</div>
+                  <div className={styles.noticeMeta}>
+                    <span>{userMap[a.writer_id] || '알 수 없음'}</span>
+                    {a.due_date && (
+                      <span style={{ color: '#e53e3e', fontWeight: 700 }}>
+                        마감 {new Date(a.due_date).toLocaleDateString('ko-KR')}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <a href="/dashboard/notices" className={styles.moreLink}>과제 관리 →</a>
         </div>
 
       </div>
