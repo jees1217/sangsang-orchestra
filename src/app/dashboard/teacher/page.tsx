@@ -65,8 +65,9 @@ export default async function TeacherDashboard() {
     { data: rawSchedules },
     { data: rawEvals },
     { data: rawAttendances },
+    { data: rawAssignments },
+    { data: rawNotices },
   ] = await Promise.all([
-    // 오늘 수업: 직접 배정(teacher_id) + 담당 반 일정(target_class_id) 모두 포함
     supabase
       .from('schedules')
       .select('id, title, schedule_type, start_time, end_time, location')
@@ -74,20 +75,45 @@ export default async function TeacherDashboard() {
       .or(scheduleFilter)
       .order('start_time', { ascending: true }),
 
-    // 최근 7일 내 내가 작성한 평가 → 평가한 student_id 목록
     supabase
       .from('evaluations')
       .select('student_id')
       .eq('writer_id', user.id)
       .gte('created_at', sevenDaysAgoStr),
 
-    // 오늘 출석 현황
     supabase
       .from('attendances')
       .select('status')
       .eq('teacher_id', user.id)
       .eq('date', todayStr),
+
+    // 나에게 해당하는 과제 (RLS가 필터링)
+    supabase
+      .from('notices')
+      .select('id, title, due_date, writer_id')
+      .eq('type', 'assignment')
+      .order('due_date', { ascending: true })
+      .limit(5),
+
+    // 나에게 해당하는 공지 (RLS가 필터링)
+    supabase
+      .from('notices')
+      .select('id, title, created_at, writer_id')
+      .eq('type', 'notice')
+      .order('created_at', { ascending: false })
+      .limit(5),
   ])
+
+  // 작성자 이름 조회용 userMap
+  const writerIds = [...new Set([
+    ...(rawAssignments || []).map((a: any) => a.writer_id),
+    ...(rawNotices || []).map((n: any) => n.writer_id),
+  ].filter(Boolean))]
+  const { data: writerRows } = writerIds.length > 0
+    ? await supabase.from('users').select('id, name').in('id', writerIds)
+    : { data: [] }
+  const userMap: Record<string, string> = {}
+  ;(writerRows || []).forEach((u: any) => { userMap[u.id] = u.name })
 
   // 담당 학생 목록 정리 (중복 제거)
   const studentMap = new Map<string, { id: string; name: string }>()
@@ -258,6 +284,71 @@ export default async function TeacherDashboard() {
           )}
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>출결/평가 관리 →</a>
+        </div>
+
+        {/* ── 카드 4: 과제 ── */}
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>
+            <span>📝</span>
+            과제
+            {(rawAssignments || []).length > 0 && (
+              <span className={styles.badge}>{(rawAssignments || []).length}건</span>
+            )}
+          </h2>
+
+          {(rawAssignments || []).length === 0 ? (
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>✅</span>
+              <p>등록된 과제가 없습니다.</p>
+            </div>
+          ) : (
+            <ul className={styles.noticeList}>
+              {(rawAssignments || []).map((a: any) => (
+                <li key={a.id} className={styles.noticeItem}>
+                  <div className={styles.noticeTitle}>{a.title}</div>
+                  <div className={styles.noticeMeta}>
+                    <span>{userMap[a.writer_id] || '알 수 없음'}</span>
+                    {a.due_date && (
+                      <span style={{ color: '#e53e3e', fontWeight: 700 }}>
+                        마감 {new Date(a.due_date).toLocaleDateString('ko-KR')}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <a href="/dashboard/notices" className={styles.moreLink}>전체 과제 보기 →</a>
+        </div>
+
+        {/* ── 카드 5: 공지사항 ── */}
+        <div className={styles.card}>
+          <h2 className={styles.cardTitle}>
+            <span>📢</span>
+            공지사항
+          </h2>
+
+          {(rawNotices || []).length === 0 ? (
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}>📭</span>
+              <p>새로운 공지사항이 없습니다.</p>
+            </div>
+          ) : (
+            <ul className={styles.noticeList}>
+              {(rawNotices || []).map((n: any) => (
+                <li key={n.id} className={styles.noticeItem}>
+                  <div className={styles.noticeTitle}>{n.title}</div>
+                  <div className={styles.noticeMeta}>
+                    <span>{userMap[n.writer_id] || '알 수 없음'}</span>
+                    <span>{new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <a href="/dashboard/notices" className={styles.moreLink}>전체 공지 보기 →</a>
         </div>
 
       </div>
