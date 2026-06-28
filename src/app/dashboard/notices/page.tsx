@@ -80,10 +80,16 @@ export default function NoticesPage() {
         ;(uData || []).forEach((u: any) => { map[u.id] = u.name })
         setUserMap(map)
       } else if (role === 'teacher') {
-        const { data: tClasses } = await supabase.from('classes').select('id, name, cohort').filter('teacher_ids', 'cs', `{${user.id}}`)
+        const [{ data: tClasses }, { data: uData }] = await Promise.all([
+          supabase.from('classes').select('id, name, cohort').filter('teacher_ids', 'cs', `{${user.id}}`),
+          supabase.from('users').select('id, name'),
+        ])
         setMyClasses(tClasses || [])
         setTargetType('class')
         if (tClasses && tClasses.length > 0) setTargetClassId(tClasses[0].id)
+        const map: Record<string, string> = {}
+        ;(uData || []).forEach((u: any) => { map[u.id] = u.name })
+        setUserMap(map)
       }
 
       fetchNotices(role, user.id)
