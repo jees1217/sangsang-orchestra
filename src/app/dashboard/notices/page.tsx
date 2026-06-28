@@ -4,15 +4,20 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './notices.module.css'
 
+type TargetType = 'all' | 'cohort' | 'class' | 'individual' | 'teachers' | 'admins' | 'individual_teacher' | 'individual_admin'
+type SubType = 'all' | 'individual'
+
 export default function NoticesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [userRole, setUserRole] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  
+
   // 데이터 목록
   const [myClasses, setMyClasses] = useState<any[]>([])
   const [allClasses, setAllClasses] = useState<any[]>([])
   const [allStudents, setAllStudents] = useState<any[]>([])
+  const [allTeachers, setAllTeachers] = useState<any[]>([])
+  const [allAdmins, setAllAdmins] = useState<any[]>([])
   const [userMap, setUserMap] = useState<Record<string, string>>({})
   const [notices, setNotices] = useState<any[]>([])
 
@@ -20,22 +25,19 @@ export default function NoticesPage() {
   const [type, setType] = useState<'notice' | 'assignment'>('notice')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [targetType, setTargetType] = useState<'all' | 'cohort' | 'class' | 'individual' | 'teachers' | 'admins'>('all')
+  const [targetType, setTargetType] = useState<TargetType>('all')
   const [targetCohort, setTargetCohort] = useState<string>('4')
-  
-  // [추가됨] 반/개인 선택 시 목록을 좁혀주기 위한 1차 기수 필터 상태
-  const [filterCohort, setFilterCohort] = useState<string>('4') 
-  
+  const [filterCohort, setFilterCohort] = useState<string>('4')
   const [targetClassId, setTargetClassId] = useState<string>('')
   const [targetUserId, setTargetUserId] = useState<string>('')
+  const [teacherSubType, setTeacherSubType] = useState<SubType>('all')
+  const [adminSubType, setAdminSubType] = useState<SubType>('all')
   const [dueDate, setDueDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchInitialData()
-  }, [])
+  useEffect(() => { fetchInitialData() }, [])
 
   const fetchInitialData = async () => {
     try {
@@ -44,35 +46,40 @@ export default function NoticesPage() {
 
       const { data: userData } = await supabase.from('users').select('role, name').eq('id', user.id).single()
       if (!userData) return
-      
+
       setCurrentUser({ id: user.id, name: userData.name })
       const role = userData.role
       setUserRole(role)
 
-      // 디렉터/어드민용 전체 반 & 전체 학생 불러오기
       if (role === 'admin' || role === 'director') {
-        const { data: cData } = await supabase.from('classes').select('id, name, cohort')
+        const [
+          { data: cData },
+          { data: sData },
+          { data: tData },
+          { data: aData },
+          { data: uData },
+        ] = await Promise.all([
+          supabase.from('classes').select('id, name, cohort'),
+          supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name'),
+          supabase.from('users').select('id, name').eq('role', 'teacher').order('name'),
+          supabase.from('users').select('id, name').in('role', ['admin', 'director']).order('name'),
+          supabase.from('users').select('id, name'),
+        ])
         setAllClasses(cData || [])
-
-        const { data: sData } = await supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name')
         setAllStudents(sData || [])
-
-        // 작성자 이름 표시용 — 전체 유저 id→name 맵
-        const { data: uData } = await supabase.from('users').select('id, name')
+        setAllTeachers(tData || [])
+        setAllAdmins(aData || [])
         const map: Record<string, string> = {}
         ;(uData || []).forEach((u: any) => { map[u.id] = u.name })
         setUserMap(map)
-      } 
-      // 선생님용 담당 반 불러오기
-      else if (role === 'teacher') {
+      } else if (role === 'teacher') {
         const { data: tClasses } = await supabase.from('classes').select('id, name, cohort').filter('teacher_ids', 'cs', `{${user.id}}`)
         setMyClasses(tClasses || [])
-        setTargetType('class') // 선생님은 무조건 반 타겟으로 고정
+        setTargetType('class')
         if (tClasses && tClasses.length > 0) setTargetClassId(tClasses[0].id)
       }
 
       fetchNotices(role, user.id)
-
     } catch (error) {
       console.error('데이터 로딩 실패:', error)
     } finally {
@@ -82,45 +89,62 @@ export default function NoticesPage() {
 
   const fetchNotices = async (role: string, userId: string) => {
     let query = supabase.from('notices').select('*').order('created_at', { ascending: false })
-
-    if (role === 'teacher') {
-      query = query.eq('writer_id', userId)
-    }
-
+    if (role === 'teacher') query = query.eq('writer_id', userId)
     const { data, error } = await query
-    if (error) {
-      console.error('notices 조회 오류:', error.message, error.code)
-    }
+    if (error) console.error('notices 조회 오류:', error.message, error.code)
     setNotices(data || [])
+  }
+
+  const resetForm = () => {
+    setTitle(''); setContent(''); setDueDate('')
+    setTargetClassId(''); setTargetUserId('')
+    setTeacherSubType('all'); setAdminSubType('all')
+  }
+
+  const handleTargetTypeChange = (val: TargetType) => {
+    setTargetType(val)
+    setTargetClassId(''); setTargetUserId('')
+    setTeacherSubType('all'); setAdminSubType('all')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !content.trim()) return alert('제목과 내용을 입력해주세요.')
-    
     setIsSubmitting(true)
 
+    // 실제 저장할 target_type 결정
+    let actualTargetType: string = targetType
+    if (targetType === 'teachers' && teacherSubType === 'individual') actualTargetType = 'individual_teacher'
+    if (targetType === 'admins'   && adminSubType   === 'individual') actualTargetType = 'individual_admin'
+
     const payload: any = {
-      type, title, content, writer_id: currentUser.id, target_type: targetType
+      type, title, content, writer_id: currentUser.id, target_type: actualTargetType,
     }
 
     if (type === 'assignment' && dueDate) payload.due_date = dueDate
-    if (targetType === 'cohort') payload.target_cohort = Number(targetCohort)
-    if (targetType === 'class') {
-      if (!targetClassId) { setIsSubmitting(false); return alert('반을 선택해주세요.'); }
+    if (actualTargetType === 'cohort') payload.target_cohort = Number(targetCohort)
+    if (actualTargetType === 'class') {
+      if (!targetClassId) { setIsSubmitting(false); return alert('반을 선택해주세요.') }
       payload.target_class_id = targetClassId
     }
-    if (targetType === 'individual') {
-      if (!targetUserId) { setIsSubmitting(false); return alert('학생을 선택해주세요.'); }
+    if (actualTargetType === 'individual') {
+      if (!targetUserId) { setIsSubmitting(false); return alert('학생을 선택해주세요.') }
+      payload.target_user_id = targetUserId
+    }
+    if (actualTargetType === 'individual_teacher') {
+      if (!targetUserId) { setIsSubmitting(false); return alert('선생님을 선택해주세요.') }
+      payload.target_user_id = targetUserId
+    }
+    if (actualTargetType === 'individual_admin') {
+      if (!targetUserId) { setIsSubmitting(false); return alert('관리자를 선택해주세요.') }
       payload.target_user_id = targetUserId
     }
 
     try {
       const { error } = await supabase.from('notices').insert(payload)
       if (error) throw error
-
       alert('성공적으로 등록되었습니다.')
-      setTitle(''); setContent(''); setDueDate(''); setTargetClassId(''); setTargetUserId('');
+      resetForm()
       await fetchNotices(userRole, currentUser.id)
     } catch (error) {
       console.error('등록 실패:', error)
@@ -131,7 +155,7 @@ export default function NoticesPage() {
   }
 
   const getTargetLabel = (notice: any) => {
-    switch (notice.target_type) {
+    switch (notice.target_type as TargetType) {
       case 'all': return '전체 공지'
       case 'cohort': return `${notice.target_cohort}기 전용`
       case 'class': {
@@ -142,8 +166,10 @@ export default function NoticesPage() {
         const student = allStudents.find(s => s.id === notice.target_user_id)
         return student ? `[${student.cohort}기] ${student.name}` : '[?기] 알 수 없는 학생'
       }
-      case 'teachers': return '선생님 그룹'
-      case 'admins': return '관리자 그룹'
+      case 'teachers': return '선생님 전체'
+      case 'admins':   return '관리자 전체'
+      case 'individual_teacher': return `선생님: ${userMap[notice.target_user_id] || '알 수 없음'}`
+      case 'individual_admin':   return `관리자: ${userMap[notice.target_user_id] || '알 수 없음'}`
       default: return '지정 안됨'
     }
   }
@@ -162,7 +188,7 @@ export default function NoticesPage() {
         <div className={styles.formSection}>
           <h2 className={styles.sectionTitle}>새로운 내용 작성</h2>
           <form onSubmit={handleSubmit}>
-            
+
             <div className={styles.radioGroup}>
               <label className={styles.radioLabel}>
                 <input type="radio" name="type" checked={type === 'notice'} onChange={() => setType('notice')} />
@@ -174,62 +200,114 @@ export default function NoticesPage() {
               </label>
             </div>
 
-            {/* 관리자/디렉터용 타겟 선택 드롭다운 */}
             {isManagement ? (
               <div className={styles.formGroup}>
-                <label className={styles.label}>수신 대상 (타겟팅)</label>
-                <select className={styles.select} value={targetType} onChange={(e) => {
-                  setTargetType(e.target.value as any)
-                  setTargetClassId('')
-                  setTargetUserId('')
-                }} style={{ marginBottom: '8px' }}>
+                <label className={styles.label}>수신 대상</label>
+                <select
+                  className={styles.select}
+                  value={targetType}
+                  onChange={(e) => handleTargetTypeChange(e.target.value as TargetType)}
+                  style={{ marginBottom: '8px' }}
+                >
                   <option value="all">전체 (모든 단원)</option>
                   <option value="cohort">기수별 단체 발송</option>
                   <option value="class">반별 선택 발송</option>
                   <option value="individual">개별 학생 발송</option>
-                  <option value="teachers">선생님 그룹</option>
-                  <option value="admins">관리자 그룹</option>
+                  <option value="teachers">선생님</option>
+                  <option value="admins">관리자</option>
                 </select>
 
-                {/* 1. 기수 단체 발송 시 */}
+                {/* 기수별 */}
                 {targetType === 'cohort' && (
                   <select className={styles.select} value={targetCohort} onChange={(e) => setTargetCohort(e.target.value)}>
-                    <option value="1">1기 전체</option><option value="2">2기 전체</option><option value="3">3기 전체</option><option value="4">4기 전체</option>
+                    <option value="1">1기 전체</option>
+                    <option value="2">2기 전체</option>
+                    <option value="3">3기 전체</option>
+                    <option value="4">4기 전체</option>
                   </select>
                 )}
 
-                {/* 2. [개선됨] 반별 선택 발송 시 (기수 선택 -> 해당 기수의 반 목록) */}
+                {/* 반별 */}
                 {targetType === 'class' && (
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <select className={styles.select} value={filterCohort} onChange={(e) => setFilterCohort(e.target.value)} style={{ width: '120px' }}>
-                      <option value="1">1기</option><option value="2">2기</option><option value="3">3기</option><option value="4">4기</option>
+                      <option value="1">1기</option><option value="2">2기</option>
+                      <option value="3">3기</option><option value="4">4기</option>
                     </select>
                     <select className={styles.select} value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)}>
                       <option value="">반을 선택하세요</option>
-                      {allClasses.filter(c => c.cohort === Number(filterCohort)).map(c => 
+                      {allClasses.filter(c => c.cohort === Number(filterCohort)).map(c =>
                         <option key={c.id} value={c.id}>{c.name}</option>
                       )}
                     </select>
                   </div>
                 )}
 
-                {/* 3. [개선됨] 개별 학생 발송 시 (기수 선택 -> 해당 기수의 학생 목록) */}
+                {/* 개별 학생 */}
                 {targetType === 'individual' && (
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <select className={styles.select} value={filterCohort} onChange={(e) => setFilterCohort(e.target.value)} style={{ width: '120px' }}>
-                      <option value="1">1기</option><option value="2">2기</option><option value="3">3기</option><option value="4">4기</option>
+                      <option value="1">1기</option><option value="2">2기</option>
+                      <option value="3">3기</option><option value="4">4기</option>
                     </select>
                     <select className={styles.select} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
                       <option value="">학생을 선택하세요</option>
-                      {allStudents.filter(s => s.cohort === Number(filterCohort)).map(s => 
+                      {allStudents.filter(s => s.cohort === Number(filterCohort)).map(s =>
                         <option key={s.id} value={s.id}>{s.name}</option>
                       )}
                     </select>
                   </div>
                 )}
+
+                {/* 선생님 — 전체/개별 */}
+                {targetType === 'teachers' && (
+                  <div>
+                    <div className={styles.radioGroup} style={{ marginBottom: '8px' }}>
+                      <label className={styles.radioLabel}>
+                        <input type="radio" name="teacherSubType" checked={teacherSubType === 'all'}
+                          onChange={() => { setTeacherSubType('all'); setTargetUserId('') }} />
+                        전체
+                      </label>
+                      <label className={styles.radioLabel}>
+                        <input type="radio" name="teacherSubType" checked={teacherSubType === 'individual'}
+                          onChange={() => setTeacherSubType('individual')} />
+                        개별 선택
+                      </label>
+                    </div>
+                    {teacherSubType === 'individual' && (
+                      <select className={styles.select} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
+                        <option value="">선생님을 선택하세요</option>
+                        {allTeachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                {/* 관리자 — 전체/개별 */}
+                {targetType === 'admins' && (
+                  <div>
+                    <div className={styles.radioGroup} style={{ marginBottom: '8px' }}>
+                      <label className={styles.radioLabel}>
+                        <input type="radio" name="adminSubType" checked={adminSubType === 'all'}
+                          onChange={() => { setAdminSubType('all'); setTargetUserId('') }} />
+                        전체
+                      </label>
+                      <label className={styles.radioLabel}>
+                        <input type="radio" name="adminSubType" checked={adminSubType === 'individual'}
+                          onChange={() => setAdminSubType('individual')} />
+                        개별 선택
+                      </label>
+                    </div>
+                    {adminSubType === 'individual' && (
+                      <select className={styles.select} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
+                        <option value="">관리자를 선택하세요</option>
+                        {allAdmins.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
-              /* 선생님용 타겟 선택 (본인 담당 반 고정) */
               <div className={styles.formGroup}>
                 <label className={styles.label}>수신 대상 (담당 반)</label>
                 <select className={styles.select} value={targetClassId} onChange={(e) => setTargetClassId(e.target.value)} required>
@@ -241,18 +319,21 @@ export default function NoticesPage() {
 
             <div className={styles.formGroup}>
               <label className={styles.label}>제목</label>
-              <input type="text" required className={styles.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="제목을 입력하세요" />
+              <input type="text" required className={styles.input} value={title}
+                onChange={(e) => setTitle(e.target.value)} placeholder="제목을 입력하세요" />
             </div>
 
             <div className={styles.formGroup}>
               <label className={styles.label}>내용</label>
-              <textarea required className={styles.textarea} value={content} onChange={(e) => setContent(e.target.value)} placeholder="상세 내용을 작성해주세요" />
+              <textarea required className={styles.textarea} value={content}
+                onChange={(e) => setContent(e.target.value)} placeholder="상세 내용을 작성해주세요" />
             </div>
 
             {type === 'assignment' && (
               <div className={styles.formGroup}>
                 <label className={styles.label}>제출 마감일 (선택)</label>
-                <input type="datetime-local" className={styles.input} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                <input type="datetime-local" className={styles.input} value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)} />
               </div>
             )}
 
@@ -279,12 +360,16 @@ export default function NoticesPage() {
                     </span>
                     <span className={styles.targetBadge}>{getTargetLabel(notice)}</span>
                   </div>
-                  {notice.due_date && <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>마감: {new Date(notice.due_date).toLocaleDateString()}</span>}
+                  {notice.due_date && (
+                    <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
+                      마감: {new Date(notice.due_date).toLocaleDateString()}
+                    </span>
+                  )}
                 </div>
                 <h3 className={styles.cardTitle}>{notice.title}</h3>
                 <div className={styles.cardContent}>{notice.content}</div>
                 <div className={styles.cardFooter}>
-                  <span>작성자: {userMap[notice.writer_id] || notice.writer_id?.slice(0, 8) || '알 수 없음'}</span>
+                  <span>작성자: {userMap[notice.writer_id] || '알 수 없음'}</span>
                   <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
                 </div>
               </div>
