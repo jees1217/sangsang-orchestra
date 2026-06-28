@@ -90,6 +90,11 @@ export default function NoticesPage() {
         const map: Record<string, string> = {}
         ;(uData || []).forEach((u: any) => { map[u.id] = u.name })
         setUserMap(map)
+      } else if (role === 'student') {
+        const { data: uData } = await supabase.from('users').select('id, name')
+        const map: Record<string, string> = {}
+        ;(uData || []).forEach((u: any) => { map[u.id] = u.name })
+        setUserMap(map)
       }
 
       fetchNotices(role, user.id)
@@ -190,9 +195,44 @@ export default function NoticesPage() {
   }
 
   if (loading) return <div className={styles.loading}>페이지를 불러오는 중입니다...</div>
-  if (userRole === 'student') return <div className={styles.empty}>접근 권한이 없습니다.</div>
 
   const isManagement = userRole === 'admin' || userRole === 'director'
+  const isStudent = userRole === 'student'
+
+  // 학생: 읽기 전용 리스트만 표시
+  if (isStudent) {
+    return (
+      <div className={styles.container}>
+        <h1 className={styles.title}>공지사항</h1>
+        {notices.length === 0 ? (
+          <div className={styles.empty}>등록된 공지나 과제가 없습니다.</div>
+        ) : (
+          notices.map(notice => (
+            <div key={notice.id} className={styles.noticeCard}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <span className={`${styles.badge} ${notice.type === 'notice' ? styles.badgeNotice : styles.badgeAssignment}`}>
+                    {notice.type === 'notice' ? '공지' : '과제'}
+                  </span>
+                </div>
+                {notice.due_date && (
+                  <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
+                    마감: {new Date(notice.due_date).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              <h3 className={styles.cardTitle}>{notice.title}</h3>
+              <div className={styles.cardContent}>{notice.content}</div>
+              <div className={styles.cardFooter}>
+                <span>작성자: {userMap[notice.writer_id] || '알 수 없음'}</span>
+                <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={styles.container}>
