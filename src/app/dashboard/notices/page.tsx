@@ -39,6 +39,13 @@ export default function NoticesPage() {
 
   useEffect(() => { fetchInitialData() }, [])
 
+  // myClasses가 로드된 후 targetClassId가 비어 있으면 첫 번째 반으로 초기화
+  useEffect(() => {
+    if (myClasses.length > 0 && !targetClassId) {
+      setTargetClassId(myClasses[0].id)
+    }
+  }, [myClasses])
+
   const fetchInitialData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -87,9 +94,10 @@ export default function NoticesPage() {
     }
   }
 
-  const fetchNotices = async (role: string, userId: string) => {
-    let query = supabase.from('notices').select('*').order('created_at', { ascending: false })
-    if (role === 'teacher') query = query.eq('writer_id', userId)
+  const fetchNotices = async (role: string, _userId: string) => {
+    // 선생님: RLS가 (내가 쓴 것 + 선생님 그룹 수신 + 개별 수신)을 알아서 필터링
+    // admin/director: 필터 없이 전체 조회
+    const query = supabase.from('notices').select('*').order('created_at', { ascending: false })
     const { data, error } = await query
     if (error) console.error('notices 조회 오류:', error.message, error.code)
     setNotices(data || [])
@@ -124,8 +132,9 @@ export default function NoticesPage() {
     if (type === 'assignment' && dueDate) payload.due_date = dueDate
     if (actualTargetType === 'cohort') payload.target_cohort = Number(targetCohort)
     if (actualTargetType === 'class') {
-      if (!targetClassId) { setIsSubmitting(false); return alert('반을 선택해주세요.') }
-      payload.target_class_id = targetClassId
+      const classId = targetClassId || myClasses[0]?.id || ''
+      if (!classId) { setIsSubmitting(false); return alert('반을 선택해주세요.') }
+      payload.target_class_id = classId
     }
     if (actualTargetType === 'individual') {
       if (!targetUserId) { setIsSubmitting(false); return alert('학생을 선택해주세요.') }
@@ -346,7 +355,7 @@ export default function NoticesPage() {
         {/* 오른쪽: 발송 내역 */}
         <div className={styles.listSection}>
           <h2 className={styles.sectionTitle}>
-            {isManagement ? '전체 발송 내역' : '내가 작성한 발송 내역'}
+            {isManagement ? '전체 발송 내역' : '과제 및 공지 리스트'}
           </h2>
           {notices.length === 0 ? (
             <div className={styles.empty}>작성된 과제나 공지가 없습니다.</div>
