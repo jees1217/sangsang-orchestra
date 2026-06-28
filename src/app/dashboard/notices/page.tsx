@@ -19,7 +19,7 @@ export default function NoticesPage() {
   const [type, setType] = useState<'notice' | 'assignment'>('notice')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [targetType, setTargetType] = useState<'all' | 'cohort' | 'class' | 'individual'>('all')
+  const [targetType, setTargetType] = useState<'all' | 'cohort' | 'class' | 'individual' | 'teachers' | 'admins'>('all')
   const [targetCohort, setTargetCohort] = useState<string>('4')
   
   // [추가됨] 반/개인 선택 시 목록을 좁혀주기 위한 1차 기수 필터 상태
@@ -82,11 +82,16 @@ export default function NoticesPage() {
       target_user:target_user_id(name, cohort)
     `).order('created_at', { ascending: false })
 
+    // 선생님: 본인이 작성한 것만
+    // admin/director: 필터 없이 전체 조회
     if (role === 'teacher') {
       query = query.eq('writer_id', userId)
     }
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) {
+      console.error('notices 조회 오류:', error)
+    }
     setNotices(data || [])
   }
 
@@ -117,7 +122,7 @@ export default function NoticesPage() {
 
       alert('성공적으로 등록되었습니다.')
       setTitle(''); setContent(''); setDueDate(''); setTargetClassId(''); setTargetUserId('');
-      fetchNotices(userRole, currentUser.id)
+      await fetchNotices(userRole, currentUser.id)
     } catch (error) {
       console.error('등록 실패:', error)
       alert('등록 중 오류가 발생했습니다.')
@@ -132,6 +137,8 @@ export default function NoticesPage() {
       case 'cohort': return `${notice.target_cohort}기 전용`
       case 'class': return `[${notice.target_class?.cohort || '?'}기] ${notice.target_class?.name || '알 수 없는 반'}`
       case 'individual': return `[${notice.target_user?.cohort || '?'}기] ${notice.target_user?.name || '알 수 없는 학생'}`
+      case 'teachers': return '선생님 그룹'
+      case 'admins': return '관리자 그룹'
       default: return '지정 안됨'
     }
   }
@@ -175,6 +182,8 @@ export default function NoticesPage() {
                   <option value="cohort">기수별 단체 발송</option>
                   <option value="class">반별 선택 발송</option>
                   <option value="individual">개별 학생 발송</option>
+                  <option value="teachers">선생님 그룹</option>
+                  <option value="admins">관리자 그룹</option>
                 </select>
 
                 {/* 1. 기수 단체 발송 시 */}
@@ -250,7 +259,9 @@ export default function NoticesPage() {
 
         {/* 오른쪽: 발송 내역 */}
         <div className={styles.listSection}>
-          <h2 className={styles.sectionTitle}>내가 작성한 발송 내역</h2>
+          <h2 className={styles.sectionTitle}>
+            {isManagement ? '전체 발송 내역' : '내가 작성한 발송 내역'}
+          </h2>
           {notices.length === 0 ? (
             <div className={styles.empty}>작성된 과제나 공지가 없습니다.</div>
           ) : (
@@ -268,7 +279,7 @@ export default function NoticesPage() {
                 <h3 className={styles.cardTitle}>{notice.title}</h3>
                 <div className={styles.cardContent}>{notice.content}</div>
                 <div className={styles.cardFooter}>
-                  <span>작성자: {notice.writer?.name}</span>
+                  <span>작성자: {notice.writer?.name || '알 수 없음'}</span>
                   <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
                 </div>
               </div>
