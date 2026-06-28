@@ -72,19 +72,19 @@ export default async function StudentDashboard() {
   ] = await Promise.all([
     supabase
       .from('schedules')
-      .select('*, teacher:teacher_id(name)')
+      .select('*')
       .gte('schedule_date', todayStr)
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
       .limit(20),
     supabase
       .from('notices')
-      .select('*, writer:writer_id(name)')
+      .select('*')
       .eq('type', 'assignment')
       .order('due_date', { ascending: true }),
     supabase
       .from('notices')
-      .select('*, writer:writer_id(name)')
+      .select('*')
       .eq('type', 'notice')
       .order('created_at', { ascending: false })
       .limit(20),
@@ -93,6 +93,18 @@ export default async function StudentDashboard() {
   const upcomingSchedules = (rawSchedules || []).filter(isForMe).slice(0, 5)
   const myAssignments     = (rawAssignments || []).filter(isForMe).slice(0, 5)
   const myNotices         = (rawNotices || []).filter(isForMe).slice(0, 3)
+
+  // 작성자/선생님 이름 일괄 조회 (FK join 대신 별도 쿼리)
+  const writerIds = [...new Set([
+    ...myAssignments.map((a: any) => a.writer_id),
+    ...myNotices.map((n: any) => n.writer_id),
+    ...upcomingSchedules.map((s: any) => s.teacher_id).filter(Boolean),
+  ])]
+  const { data: writerRows } = writerIds.length > 0
+    ? await supabase.from('users').select('id, name').in('id', writerIds)
+    : { data: [] }
+  const userMap: Record<string, string> = {}
+  ;(writerRows || []).forEach((u: any) => { userMap[u.id] = u.name })
 
   return (
     <div className={styles.container}>
@@ -154,8 +166,8 @@ export default async function StudentDashboard() {
                         {cfg.icon} {cfg.label}
                       </span>
                       <div className={styles.scheduleTitle}>{sc.title}</div>
-                      {sc.teacher && (
-                        <div className={styles.scheduleMeta}>👨‍🏫 {sc.teacher.name} 선생님</div>
+                      {sc.teacher_id && userMap[sc.teacher_id] && (
+                        <div className={styles.scheduleMeta}>👨‍🏫 {userMap[sc.teacher_id]} 선생님</div>
                       )}
                       {sc.location && !isLink && (
                         <div className={styles.scheduleMeta}>📍 {sc.location}</div>
@@ -209,7 +221,7 @@ export default async function StudentDashboard() {
                     <div className={styles.assignmentTitle}>{a.title}</div>
                     <div className={styles.assignmentFooter}>
                       <span className={styles.assignmentWriter}>
-                        {a.writer?.name} 선생님
+                        {userMap[a.writer_id] || '알 수 없음'} 선생님
                       </span>
                       {daysLeft !== null && (
                         <span className={`${styles.dueBadge} ${isOverdue ? styles.dueOverdue : isUrgent ? styles.dueUrgent : styles.dueNormal}`}>
@@ -250,7 +262,7 @@ export default async function StudentDashboard() {
                 <li key={n.id} className={styles.noticeItem}>
                   <div className={styles.noticeTitle}>{n.title}</div>
                   <div className={styles.noticeMeta}>
-                    <span>{n.writer?.name}</span>
+                    <span>{userMap[n.writer_id] || '알 수 없음'}</span>
                     <span>{new Date(n.created_at).toLocaleDateString('ko-KR')}</span>
                   </div>
                 </li>
