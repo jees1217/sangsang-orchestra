@@ -13,6 +13,7 @@ export default function NoticesPage() {
   const [myClasses, setMyClasses] = useState<any[]>([])
   const [allClasses, setAllClasses] = useState<any[]>([])
   const [allStudents, setAllStudents] = useState<any[]>([])
+  const [userMap, setUserMap] = useState<Record<string, string>>({})
   const [notices, setNotices] = useState<any[]>([])
 
   // 폼 상태
@@ -50,12 +51,17 @@ export default function NoticesPage() {
 
       // 디렉터/어드민용 전체 반 & 전체 학생 불러오기
       if (role === 'admin' || role === 'director') {
-        // [수정됨] 기수(cohort) 정보도 함께 불러옵니다.
         const { data: cData } = await supabase.from('classes').select('id, name, cohort')
         setAllClasses(cData || [])
-        
+
         const { data: sData } = await supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name')
         setAllStudents(sData || [])
+
+        // 작성자 이름 표시용 — 전체 유저 id→name 맵
+        const { data: uData } = await supabase.from('users').select('id, name')
+        const map: Record<string, string> = {}
+        ;(uData || []).forEach((u: any) => { map[u.id] = u.name })
+        setUserMap(map)
       } 
       // 선생님용 담당 반 불러오기
       else if (role === 'teacher') {
@@ -75,10 +81,7 @@ export default function NoticesPage() {
   }
 
   const fetchNotices = async (role: string, userId: string) => {
-    let query = supabase.from('notices').select(`
-      *,
-      writer:writer_id(name)
-    `).order('created_at', { ascending: false })
+    let query = supabase.from('notices').select('*').order('created_at', { ascending: false })
 
     if (role === 'teacher') {
       query = query.eq('writer_id', userId)
@@ -86,7 +89,7 @@ export default function NoticesPage() {
 
     const { data, error } = await query
     if (error) {
-      console.error('notices 조회 오류 message:', error.message, 'code:', error.code)
+      console.error('notices 조회 오류:', error.message, error.code)
     }
     setNotices(data || [])
   }
@@ -281,7 +284,7 @@ export default function NoticesPage() {
                 <h3 className={styles.cardTitle}>{notice.title}</h3>
                 <div className={styles.cardContent}>{notice.content}</div>
                 <div className={styles.cardFooter}>
-                  <span>작성자: {notice.writer?.name || '알 수 없음'}</span>
+                  <span>작성자: {userMap[notice.writer_id] || notice.writer_id?.slice(0, 8) || '알 수 없음'}</span>
                   <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
                 </div>
               </div>
