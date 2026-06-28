@@ -77,20 +77,16 @@ export default function NoticesPage() {
   const fetchNotices = async (role: string, userId: string) => {
     let query = supabase.from('notices').select(`
       *,
-      writer:writer_id(name),
-      target_class:target_class_id(name, cohort),
-      target_user:target_user_id(name, cohort)
+      writer:writer_id(name)
     `).order('created_at', { ascending: false })
 
-    // 선생님: 본인이 작성한 것만
-    // admin/director: 필터 없이 전체 조회
     if (role === 'teacher') {
       query = query.eq('writer_id', userId)
     }
 
     const { data, error } = await query
     if (error) {
-      console.error('notices 조회 오류:', error)
+      console.error('notices 조회 오류 message:', error.message, 'code:', error.code)
     }
     setNotices(data || [])
   }
@@ -135,8 +131,14 @@ export default function NoticesPage() {
     switch (notice.target_type) {
       case 'all': return '전체 공지'
       case 'cohort': return `${notice.target_cohort}기 전용`
-      case 'class': return `[${notice.target_class?.cohort || '?'}기] ${notice.target_class?.name || '알 수 없는 반'}`
-      case 'individual': return `[${notice.target_user?.cohort || '?'}기] ${notice.target_user?.name || '알 수 없는 학생'}`
+      case 'class': {
+        const cls = [...allClasses, ...myClasses].find(c => c.id === notice.target_class_id)
+        return cls ? `[${cls.cohort}기] ${cls.name}` : '[?기] 알 수 없는 반'
+      }
+      case 'individual': {
+        const student = allStudents.find(s => s.id === notice.target_user_id)
+        return student ? `[${student.cohort}기] ${student.name}` : '[?기] 알 수 없는 학생'
+      }
       case 'teachers': return '선생님 그룹'
       case 'admins': return '관리자 그룹'
       default: return '지정 안됨'
