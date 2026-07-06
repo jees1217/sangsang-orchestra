@@ -69,20 +69,26 @@ export default function TeacherManagementPage() {
 
     const todayStr = new Date().toISOString().split('T')[0]
 
-    const [{ data: classRows }, { data: scheduleRows }] = await Promise.all([
-      supabase.from('classes')
-        .select('id, name, cohort, meeting_link')
-        .filter('teacher_ids', 'cs', `{${user.id}}`)
-        .order('name'),
-      supabase.from('schedules')
-        .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_class_id, target_class:target_class_id(name, cohort)')
-        .eq('teacher_id', user.id)
-        .gte('schedule_date', todayStr)
-        .order('schedule_date', { ascending: true })
-        .order('start_time', { ascending: true }),
-    ])
+    const { data: classRows } = await supabase.from('classes')
+      .select('id, name, cohort, meeting_link')
+      .filter('teacher_ids', 'cs', `{${user.id}}`)
+      .order('name')
 
     const classes = (classRows || []) as ClassData[]
+    const classIds = classes.map(c => c.id)
+    // 공동 담임 반의 경우 schedules.teacher_id에는 반 대표 선생님 한 명만 저장되므로,
+    // 내가 담당하는 반을 대상으로 한 일정도 함께 조회해야 누락되지 않음
+    const scheduleFilter = classIds.length > 0
+      ? `teacher_id.eq.${user.id},target_class_id.in.(${classIds.join(',')})`
+      : `teacher_id.eq.${user.id}`
+
+    const { data: scheduleRows } = await supabase.from('schedules')
+      .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_class_id, target_class:target_class_id(name, cohort)')
+      .or(scheduleFilter)
+      .gte('schedule_date', todayStr)
+      .order('schedule_date', { ascending: true })
+      .order('start_time', { ascending: true })
+
     setMyClasses(classes)
     setSchedules((scheduleRows as any) || [])
 
@@ -96,9 +102,13 @@ export default function TeacherManagementPage() {
 
   const refreshSchedules = async (uid: string) => {
     const todayStr = new Date().toISOString().split('T')[0]
+    const classIds = myClasses.map(c => c.id)
+    const scheduleFilter = classIds.length > 0
+      ? `teacher_id.eq.${uid},target_class_id.in.(${classIds.join(',')})`
+      : `teacher_id.eq.${uid}`
     const { data } = await supabase.from('schedules')
       .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_class_id, target_class:target_class_id(name, cohort)')
-      .eq('teacher_id', uid)
+      .or(scheduleFilter)
       .gte('schedule_date', todayStr)
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
