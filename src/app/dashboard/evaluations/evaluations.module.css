@@ -14,12 +14,21 @@
 
 /* ── 출석부 ── */
 .rosterHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1.5px solid #edf2f7; }
-.dateInput { padding: 8px 12px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: 14px; font-family: inherit; color: #2d3748; }
 .rosterRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #edf2f7; }
 .rosterRow:last-of-type { border-bottom: none; }
 .rosterName { font-weight: 700; font-size: 14px; color: #2d3748; display: flex; align-items: center; }
 .rosterBtns { display: flex; gap: 6px; flex-shrink: 0; }
 .statusBtn { background: white; border: 1.5px solid #e2e8f0; color: #a0aec0; padding: 7px 14px; border-radius: 999px; font-weight: 700; font-size: 12px; font-family: inherit; cursor: pointer; }
+
+/* ── 수업별 출결·평가 ── */
+.sessionRow { padding: 10px 4px 14px; border-bottom: 1px solid #edf2f7; }
+.sessionRow:last-of-type { border-bottom: none; }
+.sessionEvalRow { display: flex; gap: 8px; margin-top: 8px; }
+.sessionScoreSelect { flex-shrink: 0; width: 120px; padding: 7px 8px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 12px; font-family: inherit; color: #2d3748; background: white; }
+.sessionCommentInput { flex: 1; min-width: 0; padding: 7px 10px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-family: inherit; color: #2d3748; }
+.sessionCommentInput:focus, .sessionScoreSelect:focus { outline: none; border-color: #00A99D; }
+.recordedBadge { font-size: 11px; font-weight: 700; color: #16a34a; background: #dcfce7; padding: 2px 8px; border-radius: 999px; margin-left: 8px; }
+.unrecordedBadge { font-size: 11px; font-weight: 700; color: #a0aec0; background: #f1f5f9; padding: 2px 8px; border-radius: 999px; margin-left: 8px; }
 
 /* ── 레이아웃 ── */
 .layout { display: flex; gap: 20px; align-items: flex-start; }

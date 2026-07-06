@@ -50,19 +50,26 @@ export default function EvaluationsPage() {
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [tab, setTab] = useState<'byStudent' | 'roster'>('byStudent')
-  const [rosterDate, setRosterDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [rosterStatuses, setRosterStatuses] = useState<Record<string, 'PRESENT' | 'LATE' | 'ABSENT'>>({})
-  const [rosterLoading, setRosterLoading] = useState(false)
-  const [rosterSaving, setRosterSaving] = useState(false)
+  const [tab, setTab] = useState<'byStudent' | 'session'>('byStudent')
+  const [sessionSchedules, setSessionSchedules] = useState<any[]>([])
+  const [selectedScheduleId, setSelectedScheduleId] = useState('')
+  const [allStudentsForSession, setAllStudentsForSession] = useState<any[]>([])
+  const [sessionStudents, setSessionStudents] = useState<{ id: string; name: string; className: string | null }[]>([])
+  const [sessionData, setSessionData] = useState<Record<string, {
+    status: 'PRESENT' | 'LATE' | 'ABSENT'; score: number; comment: string
+    recordedBy: string | null; recordedAt: string | null
+  }>>({})
+  const [sessionLoading, setSessionLoading] = useState(false)
+  const [sessionSaving, setSessionSaving] = useState(false)
 
-  const canWrite = userRole === 'teacher' || userRole === 'admin'
+  const canWrite = userRole === 'teacher' || userRole === 'admin' || userRole === 'director'
 
   const supabase = createClient()
 
   useEffect(() => { fetchInitialData() }, [])
   useEffect(() => { if (selectedStudent) loadDetail(selectedStudent.id) }, [selectedStudent])
-  useEffect(() => { if (tab === 'roster' && students.length > 0) loadRoster(rosterDate) }, [tab, rosterDate, students])
+  useEffect(() => { if (tab === 'session') fetchSessionSchedules() }, [tab])
+  useEffect(() => { if (selectedScheduleId) loadSession(selectedScheduleId) }, [selectedScheduleId])
 
   const fetchInitialData = async () => {
     try {
@@ -150,42 +157,142 @@ export default function EvaluationsPage() {
     }
   }
 
-  const loadRoster = async (date: string) => {
-    setRosterLoading(true)
+  const fetchSessionSchedules = async () => {
+    setSessionLoading(true)
     try {
-      const allIds = students.map(s => s.id)
-      const { data } = await supabase
-        .from('attendances').select('student_id, status')
-        .eq('date', date).in('student_id', allIds)
-      const map: Record<string, 'PRESENT' | 'LATE' | 'ABSENT'> = {}
-      allIds.forEach(id => { map[id] = 'PRESENT' })
-      ;(data || []).forEach((a: any) => { map[a.student_id] = a.status })
-      setRosterStatuses(map)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const todayStr = new Date().toISOString().split('T')[0]
+
+      let query = supabase
+        .from('schedules')
+        .select('id, title, schedule_type, schedule_date, start_time, target_type, target_cohort, target_class_id, target_user_id')
+        .lte('schedule_date', todayStr)
+        .order('schedule_date', { ascending: false })
+        .order('start_time', { ascending: false })
+
+      if (userRole === 'teacher') {
+        const { data: myClasses } = await supabase
+          .from('classes').select('id').filter('teacher_ids', 'cs', `{${user.id}}`)
+        const classIds = (myClasses || []).map((c: any) => c.id)
+        const filter = classIds.length > 0
+          ? `teacher_id.eq.${user.id},target_class_id.in.(${classIds.join(',')})`
+          : `teacher_id.eq.${user.id}`
+        query = query.or(filter)
+      }
+
+      const { data } = await query
+      setSessionSchedules(data || [])
+
+      // 대상 학생 판별용 전체 학생 목록 (한 번만 로드)
+      if (allStudentsForSession.length === 0) {
+        const { data: allStudents } = await supabase
+          .from('users')
+          .select('id, name, cohort, class_id, classes:class_id(name)')
+          .eq('role', 'student').eq('is_active', true).order('name')
+        setAllStudentsForSession(allStudents || [])
+      }
     } finally {
-      setRosterLoading(false)
+      setSessionLoading(false)
     }
   }
 
-  const handleRosterSave = async () => {
-    if (!currentUser) return
-    setRosterSaving(true)
+  const resolveSessionStudents = (schedule: any, allStudents: any[]) => {
+    switch (schedule.target_type) {
+      case 'all':
+        return allStudents
+      case 'cohort':
+        return allStudents.filter(s => s.cohort === schedule.target_cohort)
+      case 'class':
+        return allStudents.filter(s => s.class_id === schedule.target_class_id)
+      case 'individual':
+        return allStudents.filter(s => s.id === schedule.target_user_id)
+      default:
+        return []
+    }
+  }
+
+  const loadSession = async (scheduleId: string) => {
+    setSessionLoading(true)
     try {
-      const rows = students.map(s => ({
+      const schedule = sessionSchedules.find(sc => sc.id === scheduleId)
+      if (!schedule) return
+
+      let allStudents = allStudentsForSession
+      if (allStudents.length === 0) {
+        const { data } = await supabase
+          .from('users')
+          .select('id, name, cohort, class_id, classes:class_id(name)')
+          .eq('role', 'student').eq('is_active', true).order('name')
+        allStudents = data || []
+        setAllStudentsForSession(allStudents)
+      }
+
+      const resolved = resolveSessionStudents(schedule, allStudents)
+      const resolvedStudents = resolved.map((s: any) => ({ id: s.id, name: s.name, className: s.classes?.name || null }))
+      setSessionStudents(resolvedStudents)
+
+      const ids = resolvedStudents.map(s => s.id)
+      const [{ data: attData }, { data: evalData }] = ids.length > 0 ? await Promise.all([
+        supabase.from('attendances').select('student_id, status, created_at, teacher:teacher_id(name)').eq('schedule_id', scheduleId).in('student_id', ids),
+        supabase.from('evaluations').select('student_id, score, comment, created_at, writer:writer_id(name)').eq('schedule_id', scheduleId).in('student_id', ids),
+      ]) : [{ data: [] }, { data: [] }]
+
+      const map: Record<string, { status: 'PRESENT' | 'LATE' | 'ABSENT'; score: number; comment: string; recordedBy: string | null; recordedAt: string | null }> = {}
+      resolvedStudents.forEach(s => { map[s.id] = { status: 'PRESENT', score: 5, comment: '', recordedBy: null, recordedAt: null } })
+      ;(attData || []).forEach((a: any) => {
+        if (!map[a.student_id]) return
+        map[a.student_id].status = a.status
+        map[a.student_id].recordedBy = a.teacher?.name || null
+        map[a.student_id].recordedAt = a.created_at
+      })
+      ;(evalData || []).forEach((e: any) => {
+        if (!map[e.student_id]) return
+        map[e.student_id].score = e.score
+        map[e.student_id].comment = e.comment === '코멘트 없음' ? '' : e.comment
+        // 평가 작성자를 우선 표시 (출석·평가는 항상 같은 사람이 함께 저장하므로 보통 동일인)
+        map[e.student_id].recordedBy = e.writer?.name || map[e.student_id].recordedBy
+        map[e.student_id].recordedAt = e.created_at
+      })
+      setSessionData(map)
+    } finally {
+      setSessionLoading(false)
+    }
+  }
+
+  const handleSessionSave = async () => {
+    if (!currentUser || !selectedScheduleId) return
+    setSessionSaving(true)
+    try {
+      const schedule = sessionSchedules.find(sc => sc.id === selectedScheduleId)
+      const attendanceRows = sessionStudents.map(s => ({
         student_id: s.id,
         teacher_id: currentUser.id,
-        date: rosterDate,
-        status: rosterStatuses[s.id] || 'PRESENT',
+        schedule_id: selectedScheduleId,
+        date: schedule?.schedule_date,
+        status: sessionData[s.id]?.status || 'PRESENT',
       }))
-      const { error } = await supabase.from('attendances').upsert(rows, { onConflict: 'student_id,date' })
-      if (error) throw error
-      alert('출석부가 저장되었습니다.')
-      fetchInitialData()
+      const evalRows = sessionStudents.map(s => ({
+        student_id: s.id,
+        writer_id: currentUser.id,
+        schedule_id: selectedScheduleId,
+        score: sessionData[s.id]?.score || 5,
+        comment: (sessionData[s.id]?.comment || '').trim() || '코멘트 없음',
+      }))
+
+      const [{ error: attErr }, { error: evalErr }] = await Promise.all([
+        supabase.from('attendances').upsert(attendanceRows, { onConflict: 'student_id,schedule_id' }),
+        supabase.from('evaluations').upsert(evalRows, { onConflict: 'student_id,schedule_id' }),
+      ])
+      if (attErr) throw attErr
+      if (evalErr) throw evalErr
+      alert('출결·평가가 저장되었습니다.')
       if (selectedStudent) loadDetail(selectedStudent.id)
     } catch (error) {
-      console.error('출석부 저장 실패:', error)
-      alert('출석부 저장 중 오류가 발생했습니다.')
+      console.error('수업별 출결·평가 저장 실패:', error)
+      alert('저장 중 오류가 발생했습니다.')
     } finally {
-      setRosterSaving(false)
+      setSessionSaving(false)
     }
   }
 
@@ -260,58 +367,105 @@ export default function EvaluationsPage() {
             학생별 조회
           </button>
           <button
-            className={`${styles.tabBtn} ${tab === 'roster' ? styles.tabBtnActive : ''}`}
-            onClick={() => setTab('roster')}
+            className={`${styles.tabBtn} ${tab === 'session' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('session')}
           >
-            📅 출석부 입력
+            🗓 수업별 출결·평가
           </button>
         </div>
       )}
 
-      {tab === 'roster' && canWrite ? (
+      {tab === 'session' && canWrite ? (
         <div className={styles.card}>
           <div className={styles.rosterHeader}>
-            <h2 className={styles.sectionTitle} style={{ border: 'none', margin: 0, padding: 0 }}>출석부</h2>
-            <input
-              type="date"
-              value={rosterDate}
-              onChange={e => setRosterDate(e.target.value)}
-              className={styles.dateInput}
-            />
+            <h2 className={styles.sectionTitle} style={{ border: 'none', margin: 0, padding: 0 }}>수업 선택</h2>
+            <select
+              className={styles.select}
+              style={{ width: 'auto', minWidth: 280 }}
+              value={selectedScheduleId}
+              onChange={e => setSelectedScheduleId(e.target.value)}
+            >
+              <option value="">지난 수업을 선택하세요</option>
+              {sessionSchedules.map(sc => {
+                const dateLabel = new Date(sc.schedule_date + 'T00:00:00').toLocaleDateString('ko-KR', {
+                  month: 'numeric', day: 'numeric', weekday: 'short',
+                })
+                return (
+                  <option key={sc.id} value={sc.id}>
+                    {dateLabel} {sc.start_time?.substring(0, 5)} · {sc.title}
+                  </option>
+                )
+              })}
+            </select>
           </div>
-          {rosterLoading ? (
+
+          {!selectedScheduleId ? (
+            <div className={styles.empty}>{sessionLoading ? '불러오는 중...' : '기록할 수업을 선택해주세요.'}</div>
+          ) : sessionLoading ? (
             <div className={styles.loading}>불러오는 중...</div>
-          ) : students.length === 0 ? (
-            <div className={styles.empty}>담당 학생이 없습니다.</div>
+          ) : sessionStudents.length === 0 ? (
+            <div className={styles.empty}>이 수업에 해당하는 학생이 없습니다.</div>
           ) : (
             <>
-              {students.map(s => (
-                <div key={s.id} className={styles.rosterRow}>
-                  <div className={styles.rosterName}>
-                    {s.name}
-                    {s.classes?.name && <span className={styles.className} style={{ marginLeft: 8 }}>{s.classes.name}</span>}
+              {sessionStudents.map(s => {
+                const data = sessionData[s.id] || { status: 'PRESENT', score: 5, comment: '', recordedBy: null, recordedAt: null }
+                const updateSession = (patch: Partial<typeof data>) => setSessionData(prev => ({
+                  ...prev,
+                  [s.id]: { ...(prev[s.id] || { status: 'PRESENT', score: 5, comment: '', recordedBy: null, recordedAt: null }), ...patch },
+                }))
+                return (
+                  <div key={s.id} className={styles.sessionRow}>
+                    <div className={styles.rosterRow} style={{ borderBottom: 'none', paddingBottom: 6 }}>
+                      <div className={styles.rosterName}>
+                        {s.name}
+                        {s.className && <span className={styles.className} style={{ marginLeft: 8 }}>{s.className}</span>}
+                        {data.recordedBy ? (
+                          <span className={styles.recordedBadge}>
+                            ✓ {data.recordedBy} 선생님 기록 · {new Date(data.recordedAt!).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })}
+                          </span>
+                        ) : (
+                          <span className={styles.unrecordedBadge}>미기록</span>
+                        )}
+                      </div>
+                      <div className={styles.rosterBtns}>
+                        {(['PRESENT', 'LATE', 'ABSENT'] as const).map(st => {
+                          const cfg = STATUS_CONFIG[st]
+                          const active = data.status === st
+                          return (
+                            <button
+                              key={st}
+                              type="button"
+                              className={styles.statusBtn}
+                              style={active ? { background: cfg.bg, color: cfg.color, borderColor: cfg.color } : undefined}
+                              onClick={() => updateSession({ status: st })}
+                            >
+                              {cfg.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <div className={styles.sessionEvalRow}>
+                      <select
+                        className={styles.sessionScoreSelect}
+                        value={data.score}
+                        onChange={e => updateSession({ score: Number(e.target.value) })}
+                      >
+                        {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{'⭐'.repeat(n)} {n}점</option>)}
+                      </select>
+                      <input
+                        type="text"
+                        className={styles.sessionCommentInput}
+                        placeholder="코멘트 (선택 입력)"
+                        value={data.comment}
+                        onChange={e => updateSession({ comment: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className={styles.rosterBtns}>
-                    {(['PRESENT', 'LATE', 'ABSENT'] as const).map(st => {
-                      const cfg = STATUS_CONFIG[st]
-                      const active = rosterStatuses[s.id] === st
-                      return (
-                        <button
-                          key={st}
-                          type="button"
-                          className={styles.statusBtn}
-                          style={active ? { background: cfg.bg, color: cfg.color, borderColor: cfg.color } : undefined}
-                          onClick={() => setRosterStatuses(prev => ({ ...prev, [s.id]: st }))}
-                        >
-                          {cfg.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-              <button onClick={handleRosterSave} className={styles.submitBtn} disabled={rosterSaving} style={{ marginTop: 16 }}>
-                {rosterSaving ? '저장 중...' : '출석부 저장하기'}
+                )
+              })}
+              <button onClick={handleSessionSave} className={styles.submitBtn} disabled={sessionSaving} style={{ marginTop: 16 }}>
+                {sessionSaving ? '저장 중...' : '출결·평가 저장하기'}
               </button>
             </>
           )}
