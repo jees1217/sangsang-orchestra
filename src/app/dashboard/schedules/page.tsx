@@ -49,6 +49,7 @@ export default function ScheduleManagementPage() {
   const [calYear, setCalYear] = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth()) // 0-based
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<'time' | 'title'>('time')
 
   const supabase = createClient()
 
@@ -187,6 +188,15 @@ export default function ScheduleManagementPage() {
 
   // 선택된 날짜의 일정
   const selectedSchedules = selectedDate ? (scheduleMap[selectedDate] || []) : []
+
+  // 정렬 기준 적용 (시간순: 날짜/시간 오름차순, 이름순: 제목 가나다순)
+  const sortedSchedules = useMemo(() => {
+    const list = selectedDate ? selectedSchedules : schedules
+    if (sortBy === 'title') {
+      return [...list].sort((a, b) => a.title.localeCompare(b.title, 'ko'))
+    }
+    return list
+  }, [selectedDate, selectedSchedules, schedules, sortBy])
 
   // 이번 달 캘린더 날짜 계산
   const calendarDays = useMemo(() => {
@@ -474,9 +484,16 @@ export default function ScheduleManagementPage() {
               )}
             </h2>
 
-            {(selectedDate ? selectedSchedules : schedules).length === 0
+            <div className={styles.formGroup} style={{ maxWidth: 160, marginBottom: 12 }}>
+              <select className={styles.select} value={sortBy} onChange={e => setSortBy(e.target.value as any)}>
+                <option value="time">🕐 시간순</option>
+                <option value="title">🔤 이름순</option>
+              </select>
+            </div>
+
+            {sortedSchedules.length === 0
               ? <div className={styles.empty}>{selectedDate ? '이 날에 등록된 일정이 없습니다.' : '등록된 일정이 없습니다.'}</div>
-              : (selectedDate ? selectedSchedules : schedules).map(sc => (
+              : sortedSchedules.map(sc => (
                 <div key={sc.id} className={styles.scheduleCard}>
                   <div className={styles.scHeader}>
                     <div className={styles.scHeaderLeft}>
