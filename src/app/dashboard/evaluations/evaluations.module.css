@@ -7,6 +7,20 @@
 .csvBtn { background: #38a169; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px; font-family: inherit; white-space: nowrap; }
 .csvBtn:hover { background: #2f855a; }
 
+/* ── 탭 ── */
+.tabBar { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabBtn { background: white; border: 1.5px solid #e2e8f0; color: #718096; padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; font-family: inherit; cursor: pointer; }
+.tabBtnActive { background: #00A99D; border-color: #00A99D; color: white; }
+
+/* ── 출석부 ── */
+.rosterHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1.5px solid #edf2f7; }
+.dateInput { padding: 8px 12px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: 14px; font-family: inherit; color: #2d3748; }
+.rosterRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #edf2f7; }
+.rosterRow:last-of-type { border-bottom: none; }
+.rosterName { font-weight: 700; font-size: 14px; color: #2d3748; display: flex; align-items: center; }
+.rosterBtns { display: flex; gap: 6px; flex-shrink: 0; }
+.statusBtn { background: white; border: 1.5px solid #e2e8f0; color: #a0aec0; padding: 7px 14px; border-radius: 999px; font-weight: 700; font-size: 12px; font-family: inherit; cursor: pointer; }
+
 /* ── 레이아웃 ── */
 .layout { display: flex; gap: 20px; align-items: flex-start; }
 @media (max-width: 768px) { .layout { flex-direction: column; } }
@@ -83,4 +97,6 @@
   .studentList { width: 100%; }
   .profileHeader { flex-wrap: wrap; }
   .profileStats { width: 100%; justify-content: space-around; }
+  .rosterRow { flex-wrap: wrap; }
+  .rosterHeader { flex-wrap: wrap; gap: 10px; }
 }

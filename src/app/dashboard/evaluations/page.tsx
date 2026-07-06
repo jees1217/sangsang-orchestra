@@ -50,10 +50,19 @@ export default function EvaluationsPage() {
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const [tab, setTab] = useState<'byStudent' | 'roster'>('byStudent')
+  const [rosterDate, setRosterDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [rosterStatuses, setRosterStatuses] = useState<Record<string, 'PRESENT' | 'LATE' | 'ABSENT'>>({})
+  const [rosterLoading, setRosterLoading] = useState(false)
+  const [rosterSaving, setRosterSaving] = useState(false)
+
+  const canWrite = userRole === 'teacher' || userRole === 'admin'
+
   const supabase = createClient()
 
   useEffect(() => { fetchInitialData() }, [])
   useEffect(() => { if (selectedStudent) loadDetail(selectedStudent.id) }, [selectedStudent])
+  useEffect(() => { if (tab === 'roster' && students.length > 0) loadRoster(rosterDate) }, [tab, rosterDate, students])
 
   const fetchInitialData = async () => {
     try {
@@ -141,6 +150,45 @@ export default function EvaluationsPage() {
     }
   }
 
+  const loadRoster = async (date: string) => {
+    setRosterLoading(true)
+    try {
+      const allIds = students.map(s => s.id)
+      const { data } = await supabase
+        .from('attendances').select('student_id, status')
+        .eq('date', date).in('student_id', allIds)
+      const map: Record<string, 'PRESENT' | 'LATE' | 'ABSENT'> = {}
+      allIds.forEach(id => { map[id] = 'PRESENT' })
+      ;(data || []).forEach((a: any) => { map[a.student_id] = a.status })
+      setRosterStatuses(map)
+    } finally {
+      setRosterLoading(false)
+    }
+  }
+
+  const handleRosterSave = async () => {
+    if (!currentUser) return
+    setRosterSaving(true)
+    try {
+      const rows = students.map(s => ({
+        student_id: s.id,
+        teacher_id: currentUser.id,
+        date: rosterDate,
+        status: rosterStatuses[s.id] || 'PRESENT',
+      }))
+      const { error } = await supabase.from('attendances').upsert(rows, { onConflict: 'student_id,date' })
+      if (error) throw error
+      alert('출석부가 저장되었습니다.')
+      fetchInitialData()
+      if (selectedStudent) loadDetail(selectedStudent.id)
+    } catch (error) {
+      console.error('출석부 저장 실패:', error)
+      alert('출석부 저장 중 오류가 발생했습니다.')
+    } finally {
+      setRosterSaving(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedStudent || !currentUser) return
@@ -148,7 +196,7 @@ export default function EvaluationsPage() {
     try {
       const { error } = await supabase.from('evaluations').insert({
         student_id: selectedStudent.id, writer_id: currentUser.id,
-        score, comment: comment.trim(),
+        score, comment: comment.trim() || '코멘트 없음',
       })
       if (error) throw error
       alert('평가가 성공적으로 등록되었습니다.')
@@ -203,6 +251,72 @@ export default function EvaluationsPage() {
         )}
       </div>
 
+      {canWrite && (
+        <div className={styles.tabBar}>
+          <button
+            className={`${styles.tabBtn} ${tab === 'byStudent' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('byStudent')}
+          >
+            학생별 조회
+          </button>
+          <button
+            className={`${styles.tabBtn} ${tab === 'roster' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('roster')}
+          >
+            📅 출석부 입력
+          </button>
+        </div>
+      )}
+
+      {tab === 'roster' && canWrite ? (
+        <div className={styles.card}>
+          <div className={styles.rosterHeader}>
+            <h2 className={styles.sectionTitle} style={{ border: 'none', margin: 0, padding: 0 }}>출석부</h2>
+            <input
+              type="date"
+              value={rosterDate}
+              onChange={e => setRosterDate(e.target.value)}
+              className={styles.dateInput}
+            />
+          </div>
+          {rosterLoading ? (
+            <div className={styles.loading}>불러오는 중...</div>
+          ) : students.length === 0 ? (
+            <div className={styles.empty}>담당 학생이 없습니다.</div>
+          ) : (
+            <>
+              {students.map(s => (
+                <div key={s.id} className={styles.rosterRow}>
+                  <div className={styles.rosterName}>
+                    {s.name}
+                    {s.classes?.name && <span className={styles.className} style={{ marginLeft: 8 }}>{s.classes.name}</span>}
+                  </div>
+                  <div className={styles.rosterBtns}>
+                    {(['PRESENT', 'LATE', 'ABSENT'] as const).map(st => {
+                      const cfg = STATUS_CONFIG[st]
+                      const active = rosterStatuses[s.id] === st
+                      return (
+                        <button
+                          key={st}
+                          type="button"
+                          className={styles.statusBtn}
+                          style={active ? { background: cfg.bg, color: cfg.color, borderColor: cfg.color } : undefined}
+                          onClick={() => setRosterStatuses(prev => ({ ...prev, [s.id]: st }))}
+                        >
+                          {cfg.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+              <button onClick={handleRosterSave} className={styles.submitBtn} disabled={rosterSaving} style={{ marginTop: 16 }}>
+                {rosterSaving ? '저장 중...' : '출석부 저장하기'}
+              </button>
+            </>
+          )}
+        </div>
+      ) : (
       <div className={styles.layout}>
         {/* ── 왼쪽: 학생 목록 ── */}
         <div className={styles.studentList}>
@@ -311,9 +425,8 @@ export default function EvaluationsPage() {
                     <textarea
                       value={comment}
                       onChange={e => setComment(e.target.value)}
-                      placeholder="오늘 수업에서의 태도, 진도, 칭찬할 점이나 보완할 점을 자유롭게 적어주세요."
+                      placeholder="오늘 수업에서의 태도, 진도, 칭찬할 점이나 보완할 점을 자유롭게 적어주세요. (선택 입력)"
                       className={styles.textarea}
-                      required
                     />
                   </div>
                   <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
@@ -342,6 +455,7 @@ export default function EvaluationsPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
