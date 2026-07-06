@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './teacher.module.css'
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
@@ -165,8 +166,11 @@ export default async function TeacherDashboard() {
               <p>오늘 배정된 수업이 없습니다.<br />여유로운 하루 되세요!</p>
             </div>
           ) : (
-            <ul className={styles.scheduleList}>
-              {schedules.map((sc: any) => {
+            <CollapsibleList
+              visibleCount={3}
+              listClassName={styles.scheduleList}
+              toggleClassName={styles.moreLink}
+              items={schedules.map((sc: any) => {
                 const cfg = TYPE_CONFIG[sc.schedule_type] ?? {
                   label: sc.schedule_type, icon: '📌', color: '#475569', bg: '#F1F5F9',
                 }
@@ -199,7 +203,7 @@ export default async function TeacherDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/schedules" className={styles.moreLink}>전체 일정 보기 →</a>
