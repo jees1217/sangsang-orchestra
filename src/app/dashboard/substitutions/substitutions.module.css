@@ -1,0 +1,54 @@
+.container { max-width: 860px; margin: 0 auto; padding: 8px 4px 40px; }
+.loading { padding: 60px 0; text-align: center; color: #a0aec0; }
+
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.title { font-size: 24px; font-weight: 800; color: #1a202c; margin: 0 0 6px; }
+.subtitle { font-size: 14px; color: #718096; line-height: 1.6; margin: 0; }
+.pendingChip { flex-shrink: 0; font-size: 13px; font-weight: 700; color: #b45309; background: #fef3c7; padding: 6px 12px; border-radius: 999px; }
+
+.tabBar { display: flex; gap: 8px; margin-bottom: 18px; border-bottom: 1px solid #edf2f7; }
+.tab { border: none; background: none; padding: 10px 14px; font-size: 14px; font-weight: 600; color: #718096; cursor: pointer; border-bottom: 2px solid transparent; font-family: inherit; }
+.tab:hover { color: #2d3748; }
+.tabActive { color: #00A99D; border-bottom-color: #00A99D; }
+
+.empty { text-align: center; color: #a0aec0; padding: 50px 0; font-size: 14px; }
+.list { display: flex; flex-direction: column; gap: 12px; }
+.item { background: white; border: 1px solid #edf2f7; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+
+.itemHead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; flex-shrink: 0; }
+.studentName { font-size: 15px; font-weight: 800; color: #1a202c; }
+.cohort { font-size: 12px; font-weight: 600; color: #00A99D; }
+.schedule { font-size: 13px; color: #4a5568; }
+
+.itemBody { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: #4a5568; }
+.reason { font-weight: 600; }
+.detail { color: #718096; }
+
+.rejectNote { font-size: 13px; color: #c53030; background: #fff5f5; border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+.reviewerMeta { font-size: 12px; color: #a0aec0; margin-top: 6px; }
+
+.itemFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.docBtn { font-size: 13px; font-weight: 700; color: #2b6cb0; background: #ebf8ff; border: 1px solid #90cdf4; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.docBtn:hover { background: #dceffb; }
+.docMissing { font-size: 12px; font-weight: 700; color: #a0aec0; background: #f1f5f9; padding: 5px 12px; border-radius: 999px; }
+
+.actions { display: flex; gap: 8px; }
+.approveBtn { font-size: 13px; font-weight: 700; color: white; background: #16a34a; border: none; padding: 7px 18px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.approveBtn:hover { background: #15803d; }
+.rejectBtn { font-size: 13px; font-weight: 700; color: #dc2626; background: white; border: 1.5px solid #fca5a5; padding: 7px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.rejectBtn:hover { background: #fef2f2; }
+.approveBtn:disabled, .rejectBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── 기수별 증빙 정리 ── */
+.cleanup { margin-top: 28px; border-top: 1px dashed #e2e8f0; padding-top: 16px; }
+.cleanupToggle { background: none; border: none; font-size: 14px; font-weight: 700; color: #718096; cursor: pointer; padding: 4px 0; font-family: inherit; }
+.cleanupToggle:hover { color: #2d3748; }
+.cleanupBody { margin-top: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 16px 18px; }
+.cleanupHint { font-size: 13px; color: #92400e; line-height: 1.6; margin: 0 0 12px; }
+.cleanupRow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.select { padding: 9px 12px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: 14px; font-family: inherit; background: white; color: #2d3748; outline: none; }
+.select:focus { border-color: #00A99D; box-shadow: 0 0 0 3px rgba(0,169,157,0.1); }
+.cleanupBtn { font-size: 13px; font-weight: 700; color: white; background: #dc2626; border: none; padding: 9px 18px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.cleanupBtn:hover { background: #b91c1c; }
+.cleanupBtn:disabled { opacity: 0.5; cursor: not-allowed; }

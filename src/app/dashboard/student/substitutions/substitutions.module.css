@@ -1,0 +1,40 @@
+.container { max-width: 760px; margin: 0 auto; padding: 8px 4px 40px; }
+.title { font-size: 24px; font-weight: 800; color: #1a202c; margin: 0 0 6px; }
+.subtitle { font-size: 14px; color: #718096; line-height: 1.6; margin: 0 0 24px; }
+.loading { padding: 60px 0; text-align: center; color: #a0aec0; }
+
+.card { background: white; border: 1px solid #edf2f7; border-radius: 14px; padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.sectionTitle { font-size: 16px; font-weight: 700; color: #2d3748; margin: 0 0 18px; }
+
+.formGroup { margin-bottom: 18px; }
+.label { display: block; font-size: 13px; font-weight: 700; color: #4a5568; margin-bottom: 8px; }
+.select { width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: 14px; font-family: inherit; background: white; color: #2d3748; outline: none; }
+.select:focus { border-color: #00A99D; box-shadow: 0 0 0 3px rgba(0,169,157,0.1); }
+.textarea { width: 100%; padding: 12px; border: 1.5px solid #cbd5e0; border-radius: 8px; font-size: 14px; font-family: inherit; min-height: 72px; resize: vertical; outline: none; color: #2d3748; }
+.textarea:focus { border-color: #00A99D; box-shadow: 0 0 0 3px rgba(0,169,157,0.1); }
+.hint { font-size: 12px; color: #a0aec0; margin: 6px 0 0; }
+
+.reasonRow { display: flex; gap: 10px; flex-wrap: wrap; }
+.reasonBtn { flex: 1; min-width: 160px; padding: 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; background: white; color: #4a5568; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; }
+.reasonBtn:hover { border-color: #00A99D; }
+.reasonBtnActive { border-color: #00A99D; background: #E6F7F6; color: #00776e; }
+
+.submitBtn { background: linear-gradient(135deg, #00A99D 0%, #00C4B4 100%); color: white; border: none; padding: 13px 24px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; font-family: inherit; width: 100%; transition: opacity 0.2s; }
+.submitBtn:hover { opacity: 0.9; }
+.submitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.empty { text-align: center; color: #a0aec0; padding: 30px 0; font-size: 14px; }
+.reqList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.reqItem { border: 1px solid #edf2f7; border-radius: 12px; padding: 14px 16px; }
+.reqTop { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.reqBadge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; flex-shrink: 0; }
+.reqSchedule { font-size: 14px; font-weight: 700; color: #2d3748; }
+.reqMeta { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; color: #4a5568; margin-bottom: 6px; }
+.reqDetail { color: #718096; }
+.reqReject { font-size: 13px; color: #c53030; background: #fff5f5; border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+
+.reqDocRow { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.docOk { font-size: 12px; font-weight: 700; color: #16a34a; }
+.docMissing { font-size: 12px; font-weight: 700; color: #a0aec0; background: #f1f5f9; padding: 3px 10px; border-radius: 999px; }
+.docUploadBtn { font-size: 12px; font-weight: 700; color: #00776e; background: #E6F7F6; border: 1px solid #00A99D; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+.docUploadBtn:hover { background: #d3f0ee; }
