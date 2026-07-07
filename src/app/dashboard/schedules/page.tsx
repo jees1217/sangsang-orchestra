@@ -382,8 +382,8 @@ export default function ScheduleManagementPage() {
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.label}>장소 또는 Zoom 링크</label>
-                <input type="text" className={styles.input} placeholder="예: 예술의 전당 / Zoom 링크" value={location} onChange={e => setLocation(e.target.value)} />
+                <label className={styles.label}>장소 또는 온라인 링크</label>
+                <input type="text" className={styles.input} placeholder="예: 코너스톤 / 구글밋" value={location} onChange={e => setLocation(e.target.value)} />
               </div>
 
               <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
