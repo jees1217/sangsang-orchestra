@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './director.module.css'
 
 const SCHEDULE_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
@@ -81,21 +82,21 @@ export default async function DirectorDashboard() {
       .gte('date', thirtyDaysAgoStr)
       .order('date', { ascending: false }),
 
-    // 최신 강의평가 5건
+    // 최신 강의평가
     supabase
       .from('evaluations')
       .select('id, score, comment, created_at, writer:writer_id(name), student:student_id(name)')
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(20),
 
-    // 다가오는 일정 2건
+    // 다가오는 일정
     supabase
       .from('schedules')
       .select('id, title, schedule_type, schedule_date, start_time, location')
       .gte('schedule_date', todayStr)
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
-      .limit(2),
+      .limit(20),
   ])
 
   const studentCount  = (rawStudents  || []).length
@@ -110,10 +111,10 @@ export default async function DirectorDashboard() {
   const absent  = attendances.filter((a: any) => a.status === 'ABSENT').length
   const total   = attendances.length
 
-  // 결석자 최근 10건
+  // 결석자 최근 20건
   const recentAbsences = attendances
     .filter((a: any) => a.status === 'ABSENT')
-    .slice(0, 10)
+    .slice(0, 20)
 
   return (
     <div className={styles.container}>
@@ -164,8 +165,10 @@ export default async function DirectorDashboard() {
           {recentAbsences.length === 0 ? (
             <div className={styles.emptySmall}>✅ 최근 결석자가 없습니다.</div>
           ) : (
-            <ul className={styles.absenceList}>
-              {recentAbsences.map((a: any, i: number) => {
+            <CollapsibleList
+              listClassName={styles.absenceList}
+              toggleClassName={styles.moreLink}
+              items={recentAbsences.map((a: any, i: number) => {
                 const dateObj = new Date(a.date + 'T00:00:00')
                 const dateLabel = dateObj.toLocaleDateString('ko-KR', {
                   month: 'numeric', day: 'numeric', weekday: 'short',
@@ -177,7 +180,7 @@ export default async function DirectorDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>전체 출결 관리 →</a>
@@ -197,8 +200,10 @@ export default async function DirectorDashboard() {
               <p>등록된 강의평가가 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.evalList}>
-              {evaluations.map((ev: any) => {
+            <CollapsibleList
+              listClassName={styles.evalList}
+              toggleClassName={styles.moreLink}
+              items={evaluations.map((ev: any) => {
                 const score   = ev.score ?? 0
                 const comment = ev.comment ?? ''
                 const preview = comment.length > 55 ? comment.substring(0, 55) + '…' : comment
@@ -223,7 +228,7 @@ export default async function DirectorDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>전체 평가 내역 →</a>
@@ -240,8 +245,10 @@ export default async function DirectorDashboard() {
           {schedules.length === 0 ? (
             <div className={styles.emptySmall}>예정된 일정이 없습니다.</div>
           ) : (
-            <ul className={styles.miniScheduleList}>
-              {schedules.map((sc: any) => {
+            <CollapsibleList
+              listClassName={styles.miniScheduleList}
+              toggleClassName={styles.scheduleMoreLink}
+              items={schedules.map((sc: any) => {
                 const cfg = SCHEDULE_TYPE_CONFIG[sc.schedule_type] ?? {
                   label: sc.schedule_type, icon: '📌', color: '#475569', bg: '#F1F5F9',
                 }
@@ -267,7 +274,7 @@ export default async function DirectorDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/schedules" className={styles.scheduleMoreLink}>전체 일정 보기 →</a>

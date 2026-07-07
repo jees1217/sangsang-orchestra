@@ -77,7 +77,7 @@ export default async function AdminDashboard() {
       .from('evaluations')
       .select('id, score, comment, created_at, writer:writer_id(name), student:student_id(name)')
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(20),
 
     supabase
       .from('schedules')
@@ -85,21 +85,21 @@ export default async function AdminDashboard() {
       .gte('schedule_date', todayStr)
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
-      .limit(10),
+      .limit(20),
 
     supabase
       .from('notices')
       .select('id, title, created_at, writer_id')
       .eq('type', 'notice')
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(20),
 
     supabase
       .from('notices')
       .select('id, title, due_date, writer_id')
       .eq('type', 'assignment')
       .order('due_date', { ascending: true })
-      .limit(5),
+      .limit(20),
   ])
 
   // 공지/과제 작성자 이름 조회
@@ -126,7 +126,7 @@ export default async function AdminDashboard() {
 
   const recentAbsences = attendances
     .filter((a: any) => a.status === 'ABSENT')
-    .slice(0, 10)
+    .slice(0, 20)
 
   return (
     <div className={styles.container}>
@@ -175,8 +175,10 @@ export default async function AdminDashboard() {
           {recentAbsences.length === 0 ? (
             <div className={styles.emptySmall}>✅ 최근 결석자가 없습니다.</div>
           ) : (
-            <ul className={styles.absenceList}>
-              {recentAbsences.map((a: any, i: number) => {
+            <CollapsibleList
+              listClassName={styles.absenceList}
+              toggleClassName={styles.moreLink}
+              items={recentAbsences.map((a: any, i: number) => {
                 const dateLabel = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', {
                   month: 'numeric', day: 'numeric', weekday: 'short',
                 })
@@ -187,7 +189,7 @@ export default async function AdminDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>출결 관리 & CSV 다운로드 →</a>
@@ -207,8 +209,10 @@ export default async function AdminDashboard() {
               <p>등록된 강의평가가 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.evalList}>
-              {evaluations.map((ev: any) => {
+            <CollapsibleList
+              listClassName={styles.evalList}
+              toggleClassName={styles.moreLink}
+              items={evaluations.map((ev: any) => {
                 const score   = ev.score ?? 0
                 const comment = ev.comment ?? ''
                 const preview = comment.length > 55 ? comment.substring(0, 55) + '…' : comment
@@ -232,7 +236,7 @@ export default async function AdminDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>전체 평가 내역 & CSV 다운로드 →</a>
@@ -255,7 +259,6 @@ export default async function AdminDashboard() {
             </div>
           ) : (
             <CollapsibleList
-              visibleCount={3}
               listClassName={styles.scheduleList}
               toggleClassName={styles.moreLink}
               items={schedules.map((sc: any) => {
@@ -311,8 +314,10 @@ export default async function AdminDashboard() {
               <p>등록된 공지사항이 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.noticeList}>
-              {(rawNotices || []).map((n: any) => (
+            <CollapsibleList
+              listClassName={styles.noticeList}
+              toggleClassName={styles.moreLink}
+              items={(rawNotices || []).map((n: any) => (
                 <li key={n.id} className={styles.noticeItem}>
                   <div className={styles.noticeTitle}>{n.title}</div>
                   <div className={styles.noticeMeta}>
@@ -321,7 +326,7 @@ export default async function AdminDashboard() {
                   </div>
                 </li>
               ))}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/notices" className={styles.moreLink}>공지 관리 →</a>
@@ -343,8 +348,10 @@ export default async function AdminDashboard() {
               <p>등록된 과제가 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.noticeList}>
-              {(rawAssignments || []).map((a: any) => (
+            <CollapsibleList
+              listClassName={styles.noticeList}
+              toggleClassName={styles.moreLink}
+              items={(rawAssignments || []).map((a: any) => (
                 <li key={a.id} className={styles.noticeItem}>
                   <div className={styles.noticeTitle}>{a.title}</div>
                   <div className={styles.noticeMeta}>
@@ -357,7 +364,7 @@ export default async function AdminDashboard() {
                   </div>
                 </li>
               ))}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/notices" className={styles.moreLink}>과제 관리 →</a>

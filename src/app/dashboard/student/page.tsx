@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './student.module.css'
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
@@ -90,9 +91,9 @@ export default async function StudentDashboard() {
       .limit(20),
   ])
 
-  const upcomingSchedules = (rawSchedules || []).filter(isForMe).slice(0, 5)
-  const myAssignments     = (rawAssignments || []).filter(isForMe).slice(0, 5)
-  const myNotices         = (rawNotices || []).filter(isForMe).slice(0, 3)
+  const upcomingSchedules = (rawSchedules || []).filter(isForMe).slice(0, 20)
+  const myAssignments     = (rawAssignments || []).filter(isForMe).slice(0, 20)
+  const myNotices         = (rawNotices || []).filter(isForMe).slice(0, 20)
 
   // 작성자/선생님 이름 일괄 조회 (FK join 대신 별도 쿼리)
   const writerIds = [...new Set([
@@ -143,8 +144,10 @@ export default async function StudentDashboard() {
               <p>다가오는 일정이 없어요.<br />개인 연습에 집중해 보세요!</p>
             </div>
           ) : (
-            <ul className={styles.scheduleList}>
-              {upcomingSchedules.map(sc => {
+            <CollapsibleList
+              listClassName={styles.scheduleList}
+              toggleClassName={styles.moreLink}
+              items={upcomingSchedules.map(sc => {
                 const cfg = TYPE_CONFIG[sc.schedule_type] ?? { label: sc.schedule_type, icon: '📌', color: '#475569', bg: '#F1F5F9' }
                 const isLink = sc.location?.startsWith('http')
                 const dateStr = sc.schedule_date.substring(0, 10)
@@ -186,7 +189,7 @@ export default async function StudentDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/student/schedules" className={styles.moreLink}>
@@ -208,8 +211,10 @@ export default async function StudentDashboard() {
               <p>진행 중인 과제가 없어요.<br />잘 하고 있어요!</p>
             </div>
           ) : (
-            <ul className={styles.assignmentList}>
-              {myAssignments.map(a => {
+            <CollapsibleList
+              listClassName={styles.assignmentList}
+              toggleClassName={styles.moreLink}
+              items={myAssignments.map(a => {
                 const daysLeft = a.due_date ? getDaysLeft(a.due_date) : null
                 const isUrgent  = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3
                 const isOverdue = daysLeft !== null && daysLeft < 0
@@ -236,7 +241,7 @@ export default async function StudentDashboard() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/student/assignments" className={styles.moreLink}>
@@ -257,8 +262,10 @@ export default async function StudentDashboard() {
               <p>새로운 공지사항이 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.noticeList}>
-              {myNotices.map(n => (
+            <CollapsibleList
+              listClassName={styles.noticeList}
+              toggleClassName={styles.moreLink}
+              items={myNotices.map(n => (
                 <li key={n.id} className={styles.noticeItem}>
                   <div className={styles.noticeTitle}>{n.title}</div>
                   <div className={styles.noticeMeta}>
@@ -267,7 +274,7 @@ export default async function StudentDashboard() {
                   </div>
                 </li>
               ))}
-            </ul>
+            />
           )}
         </div>
 

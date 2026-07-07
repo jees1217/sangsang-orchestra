@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './monitoring.module.css'
 
 const SCHEDULE_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
@@ -124,7 +125,7 @@ export default function DirectorMonitoringPage() {
           .lte('schedule_date', thirtyForwardStr)
           .order('schedule_date', { ascending: true })
           .order('start_time',    { ascending: true })
-          .limit(10),
+          .limit(20),
 
         // 교사-학생 배정 (classes)
         supabase
@@ -336,14 +337,16 @@ export default function DirectorMonitoringPage() {
               {absentStudents.length === 0 ? (
                 <div className={styles.emptySmall}>✅ 결석자 없음</div>
               ) : (
-                <ul className={styles.absenceList}>
-                  {absentStudents.map((s, i) => (
+                <CollapsibleList
+                  listClassName={styles.absenceList}
+                  toggleClassName={styles.moreLink}
+                  items={absentStudents.map((s, i) => (
                     <li key={i} className={styles.absenceItem}>
                       <span className={styles.absenceName}>{s.name}</span>
                       <span className={styles.absenceBadge}>결석</span>
                     </li>
                   ))}
-                </ul>
+                />
               )}
             </>
           )}
@@ -363,8 +366,10 @@ export default function DirectorMonitoringPage() {
               <p>주의가 필요한 학생이<br />없습니다. 모두 잘 하고 있어요!</p>
             </div>
           ) : (
-            <ul className={styles.riskList}>
-              {atRiskStudents.map(s => (
+            <CollapsibleList
+              listClassName={styles.riskList}
+              toggleClassName={styles.moreLink}
+              items={atRiskStudents.map(s => (
                 <li key={s.id} className={styles.riskItem}>
                   <div className={styles.riskAvatar}>{s.name.charAt(0)}</div>
                   <div className={styles.riskInfo}>
@@ -381,7 +386,7 @@ export default function DirectorMonitoringPage() {
                   </div>
                 </li>
               ))}
-            </ul>
+            />
           )}
           <a href="/dashboard/members" className={styles.moreLink}>전체 단원 명부 →</a>
         </div>
@@ -399,8 +404,10 @@ export default function DirectorMonitoringPage() {
               <p>등록된 선생님이 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.teacherList}>
-              {teacherStats.map(t => {
+            <CollapsibleList
+              listClassName={styles.teacherList}
+              toggleClassName={styles.moreLink}
+              items={teacherStats.map(t => {
                 const lastEval = formatEvalDate(t.lastEvalDate)
                 const evalStale = !t.lastEvalDate || (
                   (Date.now() - new Date(t.lastEvalDate).getTime()) > 7 * 24 * 60 * 60 * 1000
@@ -423,7 +430,7 @@ export default function DirectorMonitoringPage() {
                   </li>
                 )
               })}
-            </ul>
+            />
           )}
           <a href="/dashboard/evaluations" className={styles.moreLink}>강의평가 전체 보기 →</a>
         </div>
@@ -441,8 +448,11 @@ export default function DirectorMonitoringPage() {
         {schedules.length === 0 ? (
           <div className={styles.emptySmall}>예정된 일정이 없습니다.</div>
         ) : (
-          <div className={styles.scheduleGrid}>
-            {schedules.map(sc => {
+          <CollapsibleList
+            as="div"
+            listClassName={styles.scheduleGrid}
+            toggleClassName={styles.moreLink}
+            items={schedules.map(sc => {
               const cfg = SCHEDULE_TYPE_CONFIG[sc.schedule_type] ?? { label: sc.schedule_type, icon: '📌', color: '#475569' }
               const days = getDaysFromToday(sc.schedule_date)
               const dateLabel = new Date(sc.schedule_date + 'T00:00:00').toLocaleDateString('ko-KR', {
@@ -466,7 +476,7 @@ export default function DirectorMonitoringPage() {
                 </div>
               )
             })}
-          </div>
+          />
         )}
       </div>
 

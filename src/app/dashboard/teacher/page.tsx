@@ -94,7 +94,7 @@ export default async function TeacherDashboard() {
       .select('id, title, due_date, writer_id')
       .eq('type', 'assignment')
       .order('due_date', { ascending: true })
-      .limit(5),
+      .limit(20),
 
     // 나에게 해당하는 공지 (RLS가 필터링)
     supabase
@@ -102,7 +102,7 @@ export default async function TeacherDashboard() {
       .select('id, title, created_at, writer_id')
       .eq('type', 'notice')
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(20),
   ])
 
   // 작성자 이름 조회용 userMap
@@ -167,7 +167,6 @@ export default async function TeacherDashboard() {
             </div>
           ) : (
             <CollapsibleList
-              visibleCount={3}
               listClassName={styles.scheduleList}
               toggleClassName={styles.moreLink}
               items={schedules.map((sc: any) => {
@@ -232,15 +231,17 @@ export default async function TeacherDashboard() {
               <p>이번 주 모든 학생의<br />평가를 완료했습니다!</p>
             </div>
           ) : (
-            <ul className={styles.studentList}>
-              {unevaluated.map(s => (
+            <CollapsibleList
+              listClassName={styles.studentList}
+              toggleClassName={styles.moreLink}
+              items={unevaluated.map(s => (
                 <li key={s.id} className={styles.studentItem}>
                   <span className={styles.studentAvatar}>{s.name.charAt(0)}</span>
                   <span className={styles.studentName}>{s.name}</span>
                   <span className={styles.pendingTag}>평가 필요</span>
                 </li>
               ))}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/evaluations" className={styles.moreLink}>평가 작성하러 가기 →</a>
@@ -311,8 +312,10 @@ export default async function TeacherDashboard() {
               <p>등록된 과제가 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.noticeList}>
-              {(rawAssignments || []).map((a: any) => (
+            <CollapsibleList
+              listClassName={styles.noticeList}
+              toggleClassName={styles.moreLink}
+              items={(rawAssignments || []).map((a: any) => (
                 <li key={a.id} className={styles.noticeItem}>
                   <div className={styles.noticeTitle}>{a.title}</div>
                   <div className={styles.noticeMeta}>
@@ -325,7 +328,7 @@ export default async function TeacherDashboard() {
                   </div>
                 </li>
               ))}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/notices" className={styles.moreLink}>전체 과제 보기 →</a>
@@ -344,8 +347,10 @@ export default async function TeacherDashboard() {
               <p>새로운 공지사항이 없습니다.</p>
             </div>
           ) : (
-            <ul className={styles.noticeList}>
-              {(rawNotices || []).map((n: any) => (
+            <CollapsibleList
+              listClassName={styles.noticeList}
+              toggleClassName={styles.moreLink}
+              items={(rawNotices || []).map((n: any) => (
                 <li key={n.id} className={styles.noticeItem}>
                   <div className={styles.noticeTitle}>{n.title}</div>
                   <div className={styles.noticeMeta}>
@@ -354,7 +359,7 @@ export default async function TeacherDashboard() {
                   </div>
                 </li>
               ))}
-            </ul>
+            />
           )}
 
           <a href="/dashboard/notices" className={styles.moreLink}>전체 공지 보기 →</a>

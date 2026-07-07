@@ -4,14 +4,16 @@ import { useState } from 'react'
 
 export function CollapsibleList({
   items,
-  visibleCount = 3,
+  visibleCount = 5,
   listClassName,
   toggleClassName,
+  as: Tag = 'ul',
 }: {
   items: React.ReactNode[]
   visibleCount?: number
   listClassName?: string
   toggleClassName?: string
+  as?: 'ul' | 'div'
 }) {
   const [expanded, setExpanded] = useState(false)
   const hiddenCount = items.length - visibleCount
@@ -19,7 +21,7 @@ export function CollapsibleList({
 
   return (
     <>
-      <ul className={listClassName}>{shown}</ul>
+      <Tag className={listClassName}>{shown}</Tag>
       {hiddenCount > 0 && (
         <button
           type="button"
