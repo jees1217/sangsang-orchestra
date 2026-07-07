@@ -27,6 +27,7 @@ interface AttendanceRecord {
   date: string
   status: 'PRESENT' | 'LATE' | 'ABSENT'
   schedule_id: string | null
+  teacher_id: string | null
 }
 
 interface Evaluation {
@@ -34,6 +35,7 @@ interface Evaluation {
   score: number
   comment: string
   created_at: string
+  writer_id: string | null
   writer: { name: string }
 }
 
@@ -51,6 +53,12 @@ export default function EvaluationsPage() {
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // 평가 내역 수정
+  const [editingEvalId, setEditingEvalId] = useState<string | null>(null)
+  const [editScore, setEditScore] = useState(100)
+  const [editComment, setEditComment] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const [tab, setTab] = useState<'byStudent' | 'session' | 'byTerm'>('byStudent')
   const [sessionSchedules, setSessionSchedules] = useState<any[]>([])
@@ -290,10 +298,10 @@ export default function EvaluationsPage() {
     try {
       const [{ data: attData }, { data: evalData }, { data: subData }] = await Promise.all([
         supabase.from('attendances')
-          .select('id, date, status, schedule_id').eq('student_id', studentId)
+          .select('id, date, status, schedule_id, teacher_id').eq('student_id', studentId)
           .order('date', { ascending: false }).limit(20),
         supabase.from('evaluations')
-          .select('id, score, comment, created_at, writer:writer_id(name)')
+          .select('id, score, comment, created_at, writer_id, writer:writer_id(name)')
           .eq('student_id', studentId).order('created_at', { ascending: false }),
         supabase.from('attendance_substitutions')
           .select('schedule_id').eq('student_id', studentId).eq('status', 'approved'),
@@ -303,6 +311,75 @@ export default function EvaluationsPage() {
       setHistory((evalData as any) || [])
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  // 본인(작성자)이거나 admin/director면 수정·삭제 가능. teacher는 본인이 기록한 건만.
+  const canEditAttendance = (a: AttendanceRecord) =>
+    userRole === 'admin' || userRole === 'director' || (userRole === 'teacher' && a.teacher_id === currentUser?.id)
+  const canEditEval = (e: Evaluation) =>
+    userRole === 'admin' || userRole === 'director' || (userRole === 'teacher' && e.writer_id === currentUser?.id)
+
+  const handleAttendanceStatusChange = async (attId: string, newStatus: 'PRESENT' | 'LATE' | 'ABSENT') => {
+    try {
+      const { error } = await supabase.from('attendances').update({ status: newStatus }).eq('id', attId)
+      if (error) throw error
+      setAttendanceLogs(prev => prev.map(a => a.id === attId ? { ...a, status: newStatus } : a))
+      if (selectedStudent) fetchInitialData()
+    } catch (error) {
+      console.error('출결 수정 실패:', error)
+      alert('출결 수정 중 오류가 발생했습니다.')
+    }
+  }
+
+  const handleDeleteAttendance = async (attId: string) => {
+    if (!window.confirm('이 출결 기록을 삭제할까요?')) return
+    try {
+      const { error } = await supabase.from('attendances').delete().eq('id', attId)
+      if (error) throw error
+      setAttendanceLogs(prev => prev.filter(a => a.id !== attId))
+      if (selectedStudent) fetchInitialData()
+    } catch (error) {
+      console.error('출결 삭제 실패:', error)
+      alert('출결 삭제 중 오류가 발생했습니다.')
+    }
+  }
+
+  const startEditEval = (item: Evaluation) => {
+    setEditingEvalId(item.id)
+    setEditScore(item.score)
+    setEditComment(item.comment === '코멘트 없음' ? '' : item.comment)
+  }
+
+  const cancelEditEval = () => {
+    setEditingEvalId(null)
+  }
+
+  const saveEditEval = async (id: string) => {
+    setSavingEdit(true)
+    try {
+      const { error } = await supabase.from('evaluations')
+        .update({ score: editScore, comment: editComment.trim() || '코멘트 없음' }).eq('id', id)
+      if (error) throw error
+      setEditingEvalId(null)
+      if (selectedStudent) loadDetail(selectedStudent.id)
+    } catch (error) {
+      console.error('평가 수정 실패:', error)
+      alert('평가 수정 중 오류가 발생했습니다.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const deleteEval = async (id: string) => {
+    if (!window.confirm('이 평가 내역을 삭제할까요?')) return
+    try {
+      const { error } = await supabase.from('evaluations').delete().eq('id', id)
+      if (error) throw error
+      setHistory(prev => prev.filter(h => h.id !== id))
+    } catch (error) {
+      console.error('평가 삭제 실패:', error)
+      alert('평가 삭제 중 오류가 발생했습니다.')
     }
   }
 
@@ -795,11 +872,28 @@ export default function EvaluationsPage() {
                       const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
                       const label = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' })
                       const excused = a.status === 'ABSENT' && a.schedule_id != null && excusedScheduleIds.has(a.schedule_id)
+                      const editable = canEditAttendance(a)
                       return (
                         <div key={a.id} className={styles.attChip}>
                           <span className={styles.attDate}>{label}</span>
-                          <span className={styles.attStatus} style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                          {editable ? (
+                            <select
+                              className={styles.attStatusSelect}
+                              value={a.status}
+                              style={{ background: cfg.bg, color: cfg.color }}
+                              onChange={e => handleAttendanceStatusChange(a.id, e.target.value as 'PRESENT' | 'LATE' | 'ABSENT')}
+                            >
+                              <option value="PRESENT">출석</option>
+                              <option value="LATE">지각</option>
+                              <option value="ABSENT">결석</option>
+                            </select>
+                          ) : (
+                            <span className={styles.attStatus} style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                          )}
                           {excused && <span className={styles.excusedBadge}>인정</span>}
+                          {editable && (
+                            <button type="button" className={styles.attDeleteBtn} onClick={() => handleDeleteAttendance(a.id)}>삭제</button>
+                          )}
                         </div>
                       )
                     })}
@@ -844,12 +938,53 @@ export default function EvaluationsPage() {
                   <div className={styles.emptySmall}>아직 등록된 평가 내역이 없습니다.</div>
                 ) : history.map(item => (
                   <div key={item.id} className={styles.historyItem}>
-                    <div className={styles.historyHeader}>
-                      <span className={styles.historyScore}>{item.score}점</span>
-                      <span className={styles.historyDate}>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
-                      <span className={styles.historyWriter}>{(item.writer as any)?.name || '알 수 없음'} 선생님</span>
-                    </div>
-                    <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#2d3748' }}>{item.comment}</div>
+                    {editingEvalId === item.id ? (
+                      <div className={styles.historyEditForm}>
+                        <div className={styles.historyEditRow}>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={editScore}
+                            onChange={e => setEditScore(Math.max(0, Math.min(100, Number(e.target.value))))}
+                            className={styles.sessionScoreSelect}
+                          />
+                          <span className={styles.scoreUnit}>점</span>
+                        </div>
+                        <textarea
+                          value={editComment}
+                          onChange={e => setEditComment(e.target.value)}
+                          className={styles.textarea}
+                          style={{ minHeight: 60 }}
+                        />
+                        <div className={styles.historyEditActions}>
+                          <button type="button" onClick={cancelEditEval} className={styles.historyCancelBtn}>취소</button>
+                          <button
+                            type="button"
+                            onClick={() => saveEditEval(item.id)}
+                            disabled={savingEdit}
+                            className={styles.historySaveBtn}
+                          >
+                            {savingEdit ? '저장 중...' : '저장'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className={styles.historyHeader}>
+                          <span className={styles.historyScore}>{item.score}점</span>
+                          <span className={styles.historyDate}>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
+                          <span className={styles.historyWriter}>{(item.writer as any)?.name || '알 수 없음'} 선생님</span>
+                          {canEditEval(item) && (
+                            <span className={styles.historyActions}>
+                              <button type="button" onClick={() => startEditEval(item)} className={styles.historyEditBtn}>수정</button>
+                              <button type="button" onClick={() => deleteEval(item.id)} className={styles.historyDeleteBtn}>삭제</button>
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#2d3748' }}>{item.comment}</div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

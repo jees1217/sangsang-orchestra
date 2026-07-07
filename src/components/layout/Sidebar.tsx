@@ -35,7 +35,7 @@ const MENUS = {
   admin: [
     { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },
     { label: '전체 통계', path: '/dashboard/admin/stats', icon: '📊' },
-    { label: '강의 평가 내역', path: '/dashboard/evaluations', icon: '📝' },
+    { label: '출결/평가 관리', path: '/dashboard/evaluations', icon: '📝' },
     { label: '출석 대체 관리', path: '/dashboard/substitutions', icon: '🙋' },
     { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📢' },
     { label: '악보 관리', path: '/dashboard/scores', icon: '🎵' },

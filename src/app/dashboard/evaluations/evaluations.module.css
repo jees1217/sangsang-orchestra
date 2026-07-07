@@ -93,6 +93,9 @@
 .attChip { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 56px; }
 .attDate { font-size: 11px; color: #718096; }
 .attStatus { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.attStatusSelect { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 999px; border: none; cursor: pointer; font-family: inherit; }
+.attDeleteBtn { font-size: 10px; color: #a0aec0; background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+.attDeleteBtn:hover { color: #dc2626; }
 .excusedBadge { font-size: 10px; font-weight: 700; color: #2b6cb0; background: #ebf8ff; border: 1px solid #90cdf4; padding: 1px 6px; border-radius: 999px; }
 
 /* 폼 */
@@ -113,6 +116,20 @@
 .historyScore { font-weight: 700; color: #d69e2e; }
 .historyDate { color: #a0aec0; margin-left: auto; }
 .historyWriter { font-size: 12px; color: #718096; }
+.historyActions { display: flex; gap: 8px; }
+.historyEditBtn, .historyDeleteBtn { font-size: 12px; font-weight: 700; background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+.historyEditBtn { color: #00A99D; }
+.historyEditBtn:hover { color: #008F84; }
+.historyDeleteBtn { color: #a0aec0; }
+.historyDeleteBtn:hover { color: #dc2626; }
+.historyEditForm { display: flex; flex-direction: column; gap: 10px; }
+.historyEditRow { display: flex; align-items: center; gap: 6px; }
+.historyEditActions { display: flex; justify-content: flex-end; gap: 8px; }
+.historyCancelBtn { font-size: 13px; font-weight: 700; color: #718096; background: white; border: 1.5px solid #e2e8f0; padding: 7px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.historyCancelBtn:hover { background: #f7fafc; }
+.historySaveBtn { font-size: 13px; font-weight: 700; color: white; background: #00A99D; border: none; padding: 7px 16px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.historySaveBtn:hover { background: #008F84; }
+.historySaveBtn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* 공통 */
 .emptySmall { text-align: center; color: #a0aec0; padding: 24px 0; font-size: 13px; }
