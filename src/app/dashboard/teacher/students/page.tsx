@@ -118,7 +118,7 @@ export default function TeacherStudentsPage() {
           presentCount: att.present,
           lateCount: att.late,
           absentCount: att.absent,
-          attendanceRate: total > 0 ? Math.round((att.present / total) * 100) : 0,
+          attendanceRate: total > 0 ? Math.round(((att.present + att.late) / total) * 100) : 0,
         }
       })
 

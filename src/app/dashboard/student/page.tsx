@@ -3,6 +3,12 @@ import { redirect } from 'next/navigation'
 import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './student.module.css'
 
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  PRESENT: { label: '출석', color: '#16a34a', bg: '#dcfce7' },
+  LATE:    { label: '지각', color: '#d97706', bg: '#fef3c7' },
+  ABSENT:  { label: '결석', color: '#dc2626', bg: '#fee2e2' },
+}
+
 const TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
   online:          { label: '온라인 클래스', icon: '💻', color: '#00897B', bg: '#E6F7F6' },
   offline:         { label: '오프라인 합주', icon: '🎻', color: '#2B6CB0', bg: '#EBF8FF' },
@@ -57,6 +63,16 @@ export default async function StudentDashboard() {
     month: 'long', day: 'numeric', weekday: 'long',
   })
 
+  // 현재 진행 중인 "교육 기수차"의 출결 집계 기간 (학생 개인의 cohort와는 별개 개념).
+  // 관리자가 아직 기수차를 설정하지 않았다면 경계 없이 전체 누적으로 표시한다.
+  const { data: openTerm } = await supabase
+    .from('attendance_terms')
+    .select('term, started_at')
+    .is('closed_at', null)
+    .maybeSingle()
+  const currentTerm: number | null = openTerm?.term ?? null
+  const periodStartedAt: string | null = openTerm?.started_at ?? null
+
   // 본인에게 해당하는 데이터 필터 (RLS 정책과 이중 보호)
   const isForMe = (item: any) => {
     if (item.target_type === 'all') return true
@@ -66,10 +82,18 @@ export default async function StudentDashboard() {
     return false
   }
 
+  let attendanceQuery = supabase
+    .from('attendances')
+    .select('id, date, status')
+    .eq('student_id', user.id)
+    .order('date', { ascending: false })
+  if (periodStartedAt) attendanceQuery = attendanceQuery.gte('date', periodStartedAt.split('T')[0])
+
   const [
     { data: rawSchedules },
     { data: rawAssignments },
     { data: rawNotices },
+    { data: rawAttendances },
   ] = await Promise.all([
     supabase
       .from('schedules')
@@ -89,11 +113,19 @@ export default async function StudentDashboard() {
       .eq('type', 'notice')
       .order('created_at', { ascending: false })
       .limit(20),
+    attendanceQuery,
   ])
 
   const upcomingSchedules = (rawSchedules || []).filter(isForMe).slice(0, 20)
   const myAssignments     = (rawAssignments || []).filter(isForMe).slice(0, 20)
   const myNotices         = (rawNotices || []).filter(isForMe).slice(0, 20)
+
+  const attendances = rawAttendances || []
+  const presentCount = attendances.filter((a: any) => a.status === 'PRESENT').length
+  const lateCount    = attendances.filter((a: any) => a.status === 'LATE').length
+  const absentCount  = attendances.filter((a: any) => a.status === 'ABSENT').length
+  const attendanceTotal = presentCount + lateCount + absentCount
+  const attendanceRate  = attendanceTotal > 0 ? Math.round(((presentCount + lateCount) / attendanceTotal) * 100) : null
 
   // 작성자/선생님 이름 일괄 조회 (FK join 대신 별도 쿼리)
   const writerIds = [...new Set([
@@ -125,6 +157,63 @@ export default async function StudentDashboard() {
           </div>
         </div>
         <div className={styles.welcomeDate}>{todayDisplay}</div>
+      </div>
+
+      {/* ── 나의 출결 현황 (전체 폭) ── */}
+      <div className={styles.card} style={{ marginBottom: 20 }}>
+        <h2 className={styles.cardTitle}>
+          <span>📋</span>
+          나의 출결 현황
+          <span className={styles.badgeSub}>{currentTerm !== null ? `${currentTerm}기 누적` : '전체 누적'}</span>
+          {attendanceRate !== null && (
+            <span className={styles.badge}>{attendanceRate}% 출석</span>
+          )}
+        </h2>
+
+        {attendanceTotal === 0 ? (
+          <div className={styles.empty}>
+            <span className={styles.emptyIcon}>📋</span>
+            <p>등록된 출결 기록이 없어요.</p>
+          </div>
+        ) : (
+          <>
+            <div className={styles.statRow}>
+              <div className={`${styles.statBox} ${styles.statPresent}`}>
+                <span className={styles.statNum}>{presentCount}</span>
+                <span className={styles.statLabel}>출석</span>
+              </div>
+              <div className={`${styles.statBox} ${styles.statLate}`}>
+                <span className={styles.statNum}>{lateCount}</span>
+                <span className={styles.statLabel}>지각</span>
+              </div>
+              <div className={`${styles.statBox} ${styles.statAbsent}`}>
+                <span className={styles.statNum}>{absentCount}</span>
+                <span className={styles.statLabel}>결석</span>
+              </div>
+            </div>
+            <div className={styles.statTotal}>총 {attendanceTotal}건 기록</div>
+
+            <div className={styles.sectionLabel}>최근 기록</div>
+            <CollapsibleList
+              listClassName={styles.attendanceLogList}
+              toggleClassName={styles.moreLink}
+              items={attendances.map((a: any) => {
+                const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
+                const dateLabel = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', {
+                  month: 'numeric', day: 'numeric', weekday: 'short',
+                })
+                return (
+                  <li key={a.id} className={styles.attendanceLogItem}>
+                    <span className={styles.attendanceLogDate}>{dateLabel}</span>
+                    <span className={styles.attendanceLogStatus} style={{ background: cfg.bg, color: cfg.color }}>
+                      {cfg.label}
+                    </span>
+                  </li>
+                )
+              })}
+            />
+          </>
+        )}
       </div>
 
       {/* ── 3열 카드 그리드 ── */}

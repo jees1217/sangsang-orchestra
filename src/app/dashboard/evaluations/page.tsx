@@ -52,7 +52,7 @@ export default function EvaluationsPage() {
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [tab, setTab] = useState<'byStudent' | 'session'>('byStudent')
+  const [tab, setTab] = useState<'byStudent' | 'session' | 'byTerm'>('byStudent')
   const [sessionSchedules, setSessionSchedules] = useState<any[]>([])
   const [selectedScheduleId, setSelectedScheduleId] = useState('')
   const [allStudentsForSession, setAllStudentsForSession] = useState<any[]>([])
@@ -64,6 +64,23 @@ export default function EvaluationsPage() {
   const [sessionLoading, setSessionLoading] = useState(false)
   const [sessionSaving, setSessionSaving] = useState(false)
 
+  // 학생 개인의 cohort(가입 기수)와 "교육 기수차"는 별개 개념이라 (예: 신입을 뽑지 않은 회차도 있음)
+  // 진행 중인 기수차는 학생 데이터로 추측하지 않고 관리자가 직접 관리한다.
+  const [currentTerm, setCurrentTerm] = useState<number | null>(null)
+  const [termLoaded, setTermLoaded] = useState(false)
+  const [termInput, setTermInput] = useState('')
+  const [endingTerm, setEndingTerm] = useState(false)
+
+  // 기수별 조회
+  const [termOptions, setTermOptions] = useState<{ term: number; started_at: string | null; closed_at: string | null }[]>([])
+  const [selectedReportTerm, setSelectedReportTerm] = useState<number | ''>('')
+  const [termReport, setTermReport] = useState<{
+    id: string; name: string; cohort: number | null; instrument: string | null; className: string | null
+    present: number; late: number; absent: number; rate: number
+    evalCount: number; avgScore: number | null
+  }[]>([])
+  const [termReportLoading, setTermReportLoading] = useState(false)
+
   const canWrite = userRole === 'teacher' || userRole === 'admin' || userRole === 'director'
 
   const supabase = createClient()
@@ -72,6 +89,133 @@ export default function EvaluationsPage() {
   useEffect(() => { if (selectedStudent) loadDetail(selectedStudent.id) }, [selectedStudent])
   useEffect(() => { if (tab === 'session') fetchSessionSchedules() }, [tab])
   useEffect(() => { if (selectedScheduleId) loadSession(selectedScheduleId) }, [selectedScheduleId])
+  useEffect(() => { if (userRole === 'admin') fetchTermInfo() }, [userRole])
+  useEffect(() => { if (tab === 'byTerm' && termOptions.length === 0) fetchTermOptions() }, [tab])
+  useEffect(() => { if (selectedReportTerm !== '') loadTermReport(selectedReportTerm) }, [selectedReportTerm])
+
+  const fetchTermInfo = async () => {
+    try {
+      const { data: terms } = await supabase
+        .from('attendance_terms').select('term, closed_at').order('term', { ascending: false })
+      const openRow = (terms || []).find((t: any) => t.closed_at === null)
+      setCurrentTerm(openRow ? openRow.term : null)
+    } catch (error) {
+      console.error('기수차 정보 로딩 실패:', error)
+    } finally {
+      setTermLoaded(true)
+    }
+  }
+
+  const handleSetTerm = async () => {
+    const n = Number(termInput)
+    if (!Number.isInteger(n) || n < 1) return alert('올바른 기수차 숫자를 입력해주세요.')
+    try {
+      const { error } = await supabase.from('attendance_terms')
+        .upsert({ term: n, started_at: null, closed_at: null }, { onConflict: 'term' })
+      if (error) throw error
+      setCurrentTerm(n)
+      setTermInput('')
+    } catch (error) {
+      console.error('기수차 설정 실패:', error)
+      alert('기수차 설정 중 오류가 발생했습니다.')
+    }
+  }
+
+  const handleEndTerm = async () => {
+    if (currentTerm === null) return
+    if (!window.confirm(
+      `${currentTerm}기 출결을 지금 시점으로 마감하고 ${currentTerm + 1}기 출결을 새로 시작합니다.\n` +
+      `마감된 ${currentTerm}기의 출결 값은 이후 최종값으로 고정됩니다. 계속할까요?`
+    )) return
+
+    setEndingTerm(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const now = new Date().toISOString()
+
+      const { error: closeErr } = await supabase.from('attendance_terms')
+        .upsert({ term: currentTerm, closed_at: now, closed_by: user?.id }, { onConflict: 'term' })
+      if (closeErr) throw closeErr
+
+      const { error: startErr } = await supabase.from('attendance_terms')
+        .upsert({ term: currentTerm + 1, started_at: now, closed_at: null }, { onConflict: 'term' })
+      if (startErr) throw startErr
+
+      alert(`${currentTerm}기 출결이 마감되고 ${currentTerm + 1}기가 시작되었습니다.`)
+      setCurrentTerm(currentTerm + 1)
+    } catch (error) {
+      console.error('기수 마감 실패:', error)
+      alert('기수 마감 중 오류가 발생했습니다.')
+    } finally {
+      setEndingTerm(false)
+    }
+  }
+
+  const fetchTermOptions = async () => {
+    try {
+      const { data } = await supabase
+        .from('attendance_terms').select('term, started_at, closed_at').order('term', { ascending: false })
+      setTermOptions((data as any) || [])
+    } catch (error) {
+      console.error('기수차 목록 로딩 실패:', error)
+    }
+  }
+
+  const loadTermReport = async (term: number) => {
+    setTermReportLoading(true)
+    try {
+      const row = termOptions.find(t => t.term === term)
+      const ids = students.map(s => s.id)
+      if (!row || ids.length === 0) { setTermReport([]); return }
+
+      const fromDate = row.started_at ? row.started_at.split('T')[0] : null
+      const toDate   = row.closed_at ? row.closed_at.split('T')[0] : null
+
+      let attQuery = supabase.from('attendances').select('student_id, status').in('student_id', ids)
+      if (fromDate) attQuery = attQuery.gte('date', fromDate)
+      if (toDate)   attQuery = attQuery.lte('date', toDate)
+
+      let evalQuery = supabase.from('evaluations').select('student_id, score, created_at').in('student_id', ids)
+      if (row.started_at) evalQuery = evalQuery.gte('created_at', row.started_at)
+      if (row.closed_at)  evalQuery = evalQuery.lte('created_at', row.closed_at)
+
+      const [{ data: attData }, { data: evalData }] = await Promise.all([attQuery, evalQuery])
+
+      const attMap: Record<string, { present: number; late: number; absent: number }> = {}
+      ;(attData || []).forEach((a: any) => {
+        if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0 }
+        if (a.status === 'PRESENT') attMap[a.student_id].present++
+        else if (a.status === 'LATE') attMap[a.student_id].late++
+        else if (a.status === 'ABSENT') attMap[a.student_id].absent++
+      })
+
+      const evalMap: Record<string, { sum: number; count: number }> = {}
+      ;(evalData || []).forEach((e: any) => {
+        if (e.score == null) return
+        if (!evalMap[e.student_id]) evalMap[e.student_id] = { sum: 0, count: 0 }
+        evalMap[e.student_id].sum += e.score
+        evalMap[e.student_id].count++
+      })
+
+      const report = students.map(s => {
+        const c = attMap[s.id] || { present: 0, late: 0, absent: 0 }
+        const total = c.present + c.late + c.absent
+        const ev = evalMap[s.id]
+        return {
+          id: s.id, name: s.name, cohort: s.cohort, instrument: s.instrument, className: s.classes?.name ?? null,
+          present: c.present, late: c.late, absent: c.absent,
+          rate: total > 0 ? Math.round(((c.present + c.late) / total) * 100) : 0,
+          evalCount: ev?.count ?? 0,
+          avgScore: ev && ev.count > 0 ? Math.round((ev.sum / ev.count) * 10) / 10 : null,
+        }
+      }).sort((a, b) => a.rate - b.rate)
+      setTermReport(report)
+    } catch (error) {
+      console.error('기수별 출결/평가 조회 실패:', error)
+    } finally {
+      setTermReportLoading(false)
+    }
+  }
 
   const fetchInitialData = async () => {
     try {
@@ -130,7 +274,7 @@ export default function EvaluationsPage() {
           id: u.id, name: u.name, cohort: u.cohort, instrument: u.instrument,
           classes: u.classes,
           presentCount: att.present, lateCount: att.late, absentCount: att.absent,
-          attendanceRate: total > 0 ? Math.round((att.present / total) * 100) : 0,
+          attendanceRate: total > 0 ? Math.round(((att.present + att.late) / total) * 100) : 0,
         }
       })
       setStudents(list)
@@ -363,6 +507,30 @@ export default function EvaluationsPage() {
         )}
       </div>
 
+      {userRole === 'admin' && termLoaded && (
+        currentTerm !== null ? (
+          <div className={styles.cohortBar}>
+            <span className={styles.cohortLabel}>현재 <strong>{currentTerm}기</strong> 진행 중</span>
+            <button onClick={handleEndTerm} disabled={endingTerm} className={styles.cohortEndBtn}>
+              {endingTerm ? '처리 중...' : `출결 체크 종료 (${currentTerm}기 마감 → ${currentTerm + 1}기 시작)`}
+            </button>
+          </div>
+        ) : (
+          <div className={styles.cohortBar}>
+            <span className={styles.cohortLabel}>진행 중인 기수차가 설정되지 않았습니다.</span>
+            <input
+              type="number"
+              min={1}
+              value={termInput}
+              onChange={e => setTermInput(e.target.value)}
+              placeholder="예: 4"
+              className={styles.termInput}
+            />
+            <button onClick={handleSetTerm} className={styles.cohortEndBtn}>현재 기수차 설정</button>
+          </div>
+        )
+      )}
+
       {canWrite && (
         <div className={styles.tabBar}>
           <button
@@ -376,6 +544,12 @@ export default function EvaluationsPage() {
             onClick={() => setTab('session')}
           >
             🗓 수업별 출결·평가
+          </button>
+          <button
+            className={`${styles.tabBtn} ${tab === 'byTerm' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('byTerm')}
+          >
+            📊 기수별 조회
           </button>
         </div>
       )}
@@ -475,6 +649,70 @@ export default function EvaluationsPage() {
                 {sessionSaving ? '저장 중...' : '출결·평가 저장하기'}
               </button>
             </>
+          )}
+        </div>
+      ) : tab === 'byTerm' && canWrite ? (
+        <div className={styles.card}>
+          <div className={styles.rosterHeader}>
+            <h2 className={styles.sectionTitle} style={{ border: 'none', margin: 0, padding: 0 }}>기수 선택</h2>
+            <select
+              className={styles.select}
+              style={{ width: 'auto', minWidth: 240 }}
+              value={selectedReportTerm}
+              onChange={e => setSelectedReportTerm(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">기수를 선택하세요</option>
+              {termOptions.map(t => (
+                <option key={t.term} value={t.term}>
+                  {t.term}기 {t.closed_at ? `(마감: ${new Date(t.closed_at).toLocaleDateString('ko-KR')})` : '(진행 중)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {termOptions.length === 0 ? (
+            <div className={styles.empty}>아직 설정된 기수차가 없습니다. 관리자가 출결/평가 관리에서 기수차를 먼저 설정해주세요.</div>
+          ) : selectedReportTerm === '' ? (
+            <div className={styles.empty}>조회할 기수를 선택해주세요.</div>
+          ) : termReportLoading ? (
+            <div className={styles.loading}>불러오는 중...</div>
+          ) : termReport.length === 0 ? (
+            <div className={styles.empty}>해당 기수에 학생이 없습니다.</div>
+          ) : (
+            <table className={styles.termTable}>
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  <th>반</th>
+                  <th>출석</th>
+                  <th>지각</th>
+                  <th>결석</th>
+                  <th>출석률</th>
+                  <th>평가 건수</th>
+                  <th>평균 점수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {termReport.map(r => {
+                  const rateColor = r.rate >= 80 ? '#16a34a' : r.rate >= 60 ? '#d97706' : '#dc2626'
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        {r.name}
+                        {r.cohort && <span className={styles.tag} style={{ marginLeft: 6 }}>{r.cohort}기</span>}
+                      </td>
+                      <td>{r.className || '-'}</td>
+                      <td>{r.present}</td>
+                      <td>{r.late}</td>
+                      <td>{r.absent}</td>
+                      <td style={{ color: rateColor, fontWeight: 700 }}>{r.rate}%</td>
+                      <td>{r.evalCount}건</td>
+                      <td>{r.avgScore !== null ? `${r.avgScore}점` : '-'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       ) : (

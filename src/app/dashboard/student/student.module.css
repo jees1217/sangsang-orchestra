@@ -94,6 +94,97 @@
   border-radius: 999px;
 }
 
+.badgeSub {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light, #8E9BAA);
+}
+
+.badgeSub + .badge {
+  margin-left: 8px;
+}
+
+/* ── 나의 출결 현황 ── */
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.statBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 0;
+  border-radius: var(--radius-sm, 10px);
+}
+
+.statNum {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.statLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statPresent { background: #F0FFF4; }
+.statPresent .statNum   { color: #276749; }
+.statPresent .statLabel { color: #38A169; }
+
+.statLate    { background: var(--accent-light, #FFF4D6); }
+.statLate .statNum   { color: #C05621; }
+.statLate .statLabel { color: var(--accent-color, #F5B731); }
+
+.statAbsent  { background: #FFF5F5; }
+.statAbsent .statNum   { color: #C53030; }
+.statAbsent .statLabel { color: #E53E3E; }
+
+.statTotal {
+  font-size: 12px;
+  color: var(--text-light, #8E9BAA);
+  text-align: right;
+  margin-top: 8px;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid, #5A6B7D);
+  margin: 16px 0 10px;
+}
+
+.attendanceLogList {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attendanceLogItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 56px;
+}
+
+.attendanceLogDate {
+  font-size: 11px;
+  color: var(--text-mid, #5A6B7D);
+}
+
+.attendanceLogStatus {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 /* ── 빈 상태 ── */
 .empty {
   text-align: center;

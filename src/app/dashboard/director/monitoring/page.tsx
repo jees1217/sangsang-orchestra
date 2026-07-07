@@ -221,7 +221,7 @@ export default function DirectorMonitoringPage() {
         const absent = absenceMap[sid] || 0
         const sc     = scoreMap[sid]
         const avg    = sc ? sc.sum / sc.cnt : null
-        const highAbsence = absent >= 3
+        const highAbsence = absent >= 2
         const lowScore    = avg !== null && avg <= 50
 
         if (!highAbsence && !lowScore) return
@@ -266,7 +266,7 @@ export default function DirectorMonitoringPage() {
   if (loading) return <div className={styles.loading}>오케스트라 현황을 분석 중입니다...</div>
 
   const todayTotal = todayPresent + todayLate + todayAbsent
-  const attendanceRate = todayTotal > 0 ? Math.round((todayPresent / todayTotal) * 100) : null
+  const attendanceRate = todayTotal > 0 ? Math.round(((todayPresent + todayLate) / todayTotal) * 100) : null
 
   return (
     <div className={styles.container}>
@@ -377,7 +377,7 @@ export default function DirectorMonitoringPage() {
                     {s.instrument && <div className={styles.riskInstrument}>{s.instrument}</div>}
                   </div>
                   <div className={styles.riskTags}>
-                    {s.absenceCount >= 3 && (
+                    {s.absenceCount >= 2 && (
                       <span className={styles.riskTagAbsence}>결석 {s.absenceCount}회</span>
                     )}
                     {s.avgScore !== null && s.avgScore <= 50 && (
