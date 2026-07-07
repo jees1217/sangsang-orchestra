@@ -221,7 +221,7 @@ export default function DirectorMonitoringPage() {
         const sc     = scoreMap[sid]
         const avg    = sc ? sc.sum / sc.cnt : null
         const highAbsence = absent >= 3
-        const lowScore    = avg !== null && avg <= 2.5
+        const lowScore    = avg !== null && avg <= 50
 
         if (!highAbsence && !lowScore) return
         if (!studentMap[sid]) return
@@ -236,7 +236,7 @@ export default function DirectorMonitoringPage() {
         })
       })
 
-      risks.sort((a, b) => b.absenceCount - a.absenceCount || (a.avgScore ?? 5) - (b.avgScore ?? 5))
+      risks.sort((a, b) => b.absenceCount - a.absenceCount || (a.avgScore ?? 100) - (b.avgScore ?? 100))
       setAtRiskStudents(risks)
 
       setSchedules(upcomingSchedules || [])
@@ -375,7 +375,7 @@ export default function DirectorMonitoringPage() {
                     {s.absenceCount >= 3 && (
                       <span className={styles.riskTagAbsence}>결석 {s.absenceCount}회</span>
                     )}
-                    {s.avgScore !== null && s.avgScore <= 2.5 && (
+                    {s.avgScore !== null && s.avgScore <= 50 && (
                       <span className={styles.riskTagScore}>평균 {s.avgScore}점</span>
                     )}
                   </div>

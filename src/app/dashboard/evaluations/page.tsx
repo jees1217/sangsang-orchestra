@@ -26,6 +26,7 @@ interface AttendanceRecord {
   id: string
   date: string
   status: 'PRESENT' | 'LATE' | 'ABSENT'
+  schedule_id: string | null
 }
 
 interface Evaluation {
@@ -42,10 +43,11 @@ export default function EvaluationsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceRecord[]>([])
+  const [excusedScheduleIds, setExcusedScheduleIds] = useState<Set<string>>(new Set())
   const [history, setHistory] = useState<Evaluation[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
 
-  const [score, setScore] = useState<number>(5)
+  const [score, setScore] = useState<number>(100)
   const [comment, setComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -142,15 +144,18 @@ export default function EvaluationsPage() {
   const loadDetail = async (studentId: string) => {
     setDetailLoading(true)
     try {
-      const [{ data: attData }, { data: evalData }] = await Promise.all([
+      const [{ data: attData }, { data: evalData }, { data: subData }] = await Promise.all([
         supabase.from('attendances')
-          .select('id, date, status').eq('student_id', studentId)
+          .select('id, date, status, schedule_id').eq('student_id', studentId)
           .order('date', { ascending: false }).limit(20),
         supabase.from('evaluations')
           .select('id, score, comment, created_at, writer:writer_id(name)')
           .eq('student_id', studentId).order('created_at', { ascending: false }),
+        supabase.from('attendance_substitutions')
+          .select('schedule_id').eq('student_id', studentId).eq('status', 'approved'),
       ])
       setAttendanceLogs((attData as any) || [])
+      setExcusedScheduleIds(new Set((subData || []).map((s: any) => s.schedule_id)))
       setHistory((evalData as any) || [])
     } finally {
       setDetailLoading(false)
@@ -239,7 +244,7 @@ export default function EvaluationsPage() {
       ]) : [{ data: [] }, { data: [] }]
 
       const map: Record<string, { status: 'PRESENT' | 'LATE' | 'ABSENT'; score: number; comment: string; recordedBy: string | null; recordedAt: string | null }> = {}
-      resolvedStudents.forEach(s => { map[s.id] = { status: 'PRESENT', score: 5, comment: '', recordedBy: null, recordedAt: null } })
+      resolvedStudents.forEach(s => { map[s.id] = { status: 'PRESENT', score: 100, comment: '', recordedBy: null, recordedAt: null } })
       ;(attData || []).forEach((a: any) => {
         if (!map[a.student_id]) return
         map[a.student_id].status = a.status
@@ -276,7 +281,7 @@ export default function EvaluationsPage() {
         student_id: s.id,
         writer_id: currentUser.id,
         schedule_id: selectedScheduleId,
-        score: sessionData[s.id]?.score || 5,
+        score: sessionData[s.id]?.score || 100,
         comment: (sessionData[s.id]?.comment || '').trim() || '코멘트 없음',
       }))
 
@@ -307,7 +312,7 @@ export default function EvaluationsPage() {
       })
       if (error) throw error
       alert('평가가 성공적으로 등록되었습니다.')
-      setScore(5); setComment('')
+      setScore(100); setComment('')
       loadDetail(selectedStudent.id)
     } catch (error) {
       console.error('평가 등록 실패:', error)
@@ -324,7 +329,7 @@ export default function EvaluationsPage() {
         .order('created_at', { ascending: false })
       if (error) throw error
       if (!data || data.length === 0) return alert('다운로드할 데이터가 없습니다.')
-      let csv = '작성일시,학생 이름,수업 점수(5점 만점),평가자(선생님),코멘트/특이사항\n'
+      let csv = '작성일시,학생 이름,수업 점수(100점 만점),평가자(선생님),코멘트/특이사항\n'
       data.forEach((row: any) => {
         const date = new Date(row.created_at).toLocaleDateString()
         const safeComment = `"${(row.comment || '').replace(/"/g, '""')}"`
@@ -408,10 +413,10 @@ export default function EvaluationsPage() {
           ) : (
             <>
               {sessionStudents.map(s => {
-                const data = sessionData[s.id] || { status: 'PRESENT', score: 5, comment: '', recordedBy: null, recordedAt: null }
+                const data = sessionData[s.id] || { status: 'PRESENT', score: 100, comment: '', recordedBy: null, recordedAt: null }
                 const updateSession = (patch: Partial<typeof data>) => setSessionData(prev => ({
                   ...prev,
-                  [s.id]: { ...(prev[s.id] || { status: 'PRESENT', score: 5, comment: '', recordedBy: null, recordedAt: null }), ...patch },
+                  [s.id]: { ...(prev[s.id] || { status: 'PRESENT', score: 100, comment: '', recordedBy: null, recordedAt: null }), ...patch },
                 }))
                 return (
                   <div key={s.id} className={styles.sessionRow}>
@@ -446,13 +451,15 @@ export default function EvaluationsPage() {
                       </div>
                     </div>
                     <div className={styles.sessionEvalRow}>
-                      <select
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
                         className={styles.sessionScoreSelect}
                         value={data.score}
-                        onChange={e => updateSession({ score: Number(e.target.value) })}
-                      >
-                        {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{'⭐'.repeat(n)} {n}점</option>)}
-                      </select>
+                        onChange={e => updateSession({ score: Math.max(0, Math.min(100, Number(e.target.value))) })}
+                      />
+                      <span className={styles.scoreUnit}>점</span>
                       <input
                         type="text"
                         className={styles.sessionCommentInput}
@@ -549,10 +556,12 @@ export default function EvaluationsPage() {
                     {attendanceLogs.map(a => {
                       const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
                       const label = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' })
+                      const excused = a.status === 'ABSENT' && a.schedule_id != null && excusedScheduleIds.has(a.schedule_id)
                       return (
                         <div key={a.id} className={styles.attChip}>
                           <span className={styles.attDate}>{label}</span>
                           <span className={styles.attStatus} style={{ background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                          {excused && <span className={styles.excusedBadge}>인정</span>}
                         </div>
                       )
                     })}
@@ -565,14 +574,15 @@ export default function EvaluationsPage() {
                 <h2 className={styles.sectionTitle}>✏️ 평가 등록</h2>
                 <form onSubmit={handleSubmit}>
                   <div className={styles.formGroup}>
-                    <label className={styles.label}>수업 점수 (5점 만점)</label>
-                    <select value={score} onChange={e => setScore(Number(e.target.value))} className={styles.select}>
-                      <option value={5}>⭐⭐⭐⭐⭐ 5점 — 매우 우수</option>
-                      <option value={4}>⭐⭐⭐⭐ 4점 — 우수</option>
-                      <option value={3}>⭐⭐⭐ 3점 — 보통</option>
-                      <option value={2}>⭐⭐ 2점 — 미흡</option>
-                      <option value={1}>⭐ 1점 — 매우 미흡</option>
-                    </select>
+                    <label className={styles.label}>수업 점수 (100점 만점)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={score}
+                      onChange={e => setScore(Math.max(0, Math.min(100, Number(e.target.value))))}
+                      className={styles.select}
+                    />
                   </div>
                   <div className={styles.formGroup}>
                     <label className={styles.label}>수업 태도 및 특이사항</label>
@@ -597,7 +607,7 @@ export default function EvaluationsPage() {
                 ) : history.map(item => (
                   <div key={item.id} className={styles.historyItem}>
                     <div className={styles.historyHeader}>
-                      <span className={styles.historyScore}>{'⭐'.repeat(item.score)} ({item.score}점)</span>
+                      <span className={styles.historyScore}>{item.score}점</span>
                       <span className={styles.historyDate}>{new Date(item.created_at).toLocaleDateString('ko-KR')}</span>
                       <span className={styles.historyWriter}>{(item.writer as any)?.name || '알 수 없음'} 선생님</span>
                     </div>

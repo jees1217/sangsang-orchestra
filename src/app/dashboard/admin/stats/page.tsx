@@ -221,7 +221,7 @@ export default function AdminStatsPage() {
                 <div key={idx} className={styles.listItem} style={{ flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', gap: '12px', fontSize: '14px', color: '#718096' }}>
                     <strong>{ev.student?.name || '알 수 없음'} {ev.student?.cohort ? `(${ev.student.cohort}기)` : ''}</strong>
-                    <span>⭐ {ev.score}점</span>
+                    <span>{ev.score}점</span>
                     <span>작성자: {ev.writer?.name || '알 수 없음'}</span>
                     <span>{new Date(ev.created_at).toLocaleDateString()}</span>
                   </div>

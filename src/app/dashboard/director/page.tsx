@@ -215,7 +215,6 @@ export default async function DirectorDashboard() {
                       <span className={styles.evalDate}>{dateLabel}</span>
                     </div>
                     <div className={styles.evalScore}>
-                      {'⭐'.repeat(Math.min(score, 5))}
                       <span className={styles.evalScoreNum}>{score}점</span>
                     </div>
                     {preview && (

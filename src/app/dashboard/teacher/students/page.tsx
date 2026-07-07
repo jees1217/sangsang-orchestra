@@ -47,7 +47,7 @@ export default function TeacherStudentsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
 
   // 평가 작성 폼
-  const [score, setScore] = useState(5)
+  const [score, setScore] = useState(100)
   const [comment, setComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -163,7 +163,7 @@ export default function TeacherStudentsPage() {
         .from('evaluations')
         .insert({ student_id: selected.id, writer_id: teacherId, score, comment: comment.trim() })
       if (error) throw error
-      setScore(5)
+      setScore(100)
       setComment('')
       loadDetail(selected.id)
     } catch (err) {
@@ -283,17 +283,15 @@ export default function TeacherStudentsPage() {
                 <div className={styles.section}>
                   <h2 className={styles.sectionTitle}>✏️ 평가 등록</h2>
                   <form onSubmit={handleEvalSubmit} className={styles.evalForm}>
-                    <select
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
                       value={score}
-                      onChange={e => setScore(Number(e.target.value))}
+                      onChange={e => setScore(Math.max(0, Math.min(100, Number(e.target.value))))}
                       className={styles.select}
-                    >
-                      <option value={5}>⭐⭐⭐⭐⭐ 5점 — 매우 우수</option>
-                      <option value={4}>⭐⭐⭐⭐ 4점 — 우수</option>
-                      <option value={3}>⭐⭐⭐ 3점 — 보통</option>
-                      <option value={2}>⭐⭐ 2점 — 미흡</option>
-                      <option value={1}>⭐ 1점 — 매우 미흡</option>
-                    </select>
+                      placeholder="점수 (100점 만점)"
+                    />
                     <textarea
                       value={comment}
                       onChange={e => setComment(e.target.value)}
@@ -316,7 +314,7 @@ export default function TeacherStudentsPage() {
                     evalLogs.map(ev => (
                       <div key={ev.id} className={styles.evalItem}>
                         <div className={styles.evalTop}>
-                          <span className={styles.evalScore}>{'⭐'.repeat(ev.score)} {ev.score}점</span>
+                          <span className={styles.evalScore}>{ev.score}점</span>
                           <span className={styles.evalDate}>{new Date(ev.created_at).toLocaleDateString('ko-KR')}</span>
                           <span className={styles.evalWriter}>{(ev.writer as any)?.name ?? ''} 선생님</span>
                         </div>
