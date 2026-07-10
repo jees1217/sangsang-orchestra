@@ -34,7 +34,7 @@ export default function StudentAssignmentsPage() {
       // 2. 오케스트라 전체 과제 공지 가져오기
       const { data: noticesData } = await supabase
         .from('notices')
-        .select('*, writer:writer_id(name)')
+        .select('*')
         .eq('type', 'assignment')
         .order('created_at', { ascending: false })
 

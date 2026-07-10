@@ -108,7 +108,9 @@ export default function NoticesPage() {
   const fetchNotices = async (role: string, _userId: string) => {
     // 선생님: RLS가 (내가 쓴 것 + 선생님 그룹 수신 + 개별 수신)을 알아서 필터링
     // admin/director: 필터 없이 전체 조회
-    const query = supabase.from('notices').select('*').order('created_at', { ascending: false })
+    // 학생: 공지사항 화면이므로 과제(assignment)는 제외 — 과제는 "나의 과제" 페이지에서 확인
+    let query = supabase.from('notices').select('*').order('created_at', { ascending: false })
+    if (role === 'student') query = query.eq('type', 'notice')
     const { data, error } = await query
     if (error) console.error('notices 조회 오류:', error.message, error.code)
     setNotices(data || [])
