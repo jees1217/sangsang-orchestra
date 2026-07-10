@@ -2,7 +2,7 @@
 
 export const SUBSTITUTION_REASONS = {
   medical:     { label: '병가 (수술·입원 등)', icon: '🏥' },
-  competition: { label: '콩쿠르 등 대회',       icon: '🏆' },
+  competition: { label: '콩쿠르',              icon: '🏆' },
 } as const
 
 export type SubstitutionReason = keyof typeof SUBSTITUTION_REASONS
