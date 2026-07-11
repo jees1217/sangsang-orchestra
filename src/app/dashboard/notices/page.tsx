@@ -176,6 +176,17 @@ export default function NoticesPage() {
     }
   }
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('이 공지/과제를 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.')) return
+    const { error } = await supabase.from('notices').delete().eq('id', id)
+    if (error) {
+      console.error('삭제 실패:', error)
+      alert('삭제 중 오류가 발생했습니다.')
+      return
+    }
+    await fetchNotices(userRole, currentUser.id)
+  }
+
   const getTargetLabel = (notice: any) => {
     switch (notice.target_type as TargetType) {
       case 'all': return '전체 공지'
@@ -417,11 +428,26 @@ export default function NoticesPage() {
                     </span>
                     <span className={styles.targetBadge}>{getTargetLabel(notice)}</span>
                   </div>
-                  {notice.due_date && (
-                    <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
-                      마감: {new Date(notice.due_date).toLocaleDateString()}
-                    </span>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {notice.due_date && (
+                      <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
+                        마감: {new Date(notice.due_date).toLocaleDateString()}
+                      </span>
+                    )}
+                    {isManagement && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(notice.id)}
+                        style={{
+                          fontSize: '12px', color: '#e53e3e', background: 'none',
+                          border: '1px solid #e53e3e', borderRadius: '6px',
+                          padding: '4px 8px', cursor: 'pointer',
+                        }}
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <h3 className={styles.cardTitle}>{notice.title}</h3>
                 <div className={styles.cardContent}>{notice.content}</div>
