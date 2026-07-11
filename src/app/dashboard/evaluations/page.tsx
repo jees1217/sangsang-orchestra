@@ -428,7 +428,7 @@ export default function EvaluationsPage() {
       case 'all':
         return allStudents
       case 'cohort':
-        return allStudents.filter(s => s.cohort === schedule.target_cohort)
+        return allStudents.filter(s => (schedule.target_cohort || []).includes(s.cohort))
       case 'class':
         return allStudents.filter(s => s.class_id === schedule.target_class_id)
       case 'individual':

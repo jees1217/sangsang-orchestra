@@ -74,7 +74,7 @@ export default function StudentSubstitutionsPage() {
 
       const mine = (allSchedules || []).filter((sc: any) => {
         if (sc.target_type === 'all') return true
-        if (sc.target_type === 'cohort' && sc.target_cohort === student.cohort) return true
+        if (sc.target_type === 'cohort' && (sc.target_cohort || []).includes(student.cohort)) return true
         if (sc.target_type === 'class' && sc.target_class_id === student.class_id) return true
         if (sc.target_type === 'individual' && sc.target_user_id === user.id) return true
         return false

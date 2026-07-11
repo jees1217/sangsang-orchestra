@@ -36,7 +36,7 @@ export default function ScheduleManagementPage() {
   const [teacherId, setTeacherId] = useState('')
   const [location, setLocation] = useState('')
   const [targetType, setTargetType] = useState<'all' | 'cohort' | 'class' | 'individual'>('all')
-  const [targetCohort, setTargetCohort] = useState('4')
+  const [targetCohorts, setTargetCohorts] = useState<number[]>([4])
   const [filterCohort, setFilterCohort] = useState('4')
   const [targetClassId, setTargetClassId] = useState('')
   const [targetUserId, setTargetUserId] = useState('')
@@ -109,7 +109,10 @@ export default function ScheduleManagementPage() {
       teacher_id: teacherId || null, location,
       target_type: targetType, created_by: currentUser.id,
     }
-    if (targetType === 'cohort') payload.target_cohort = Number(targetCohort)
+    if (targetType === 'cohort') {
+      if (targetCohorts.length === 0) { setIsSubmitting(false); return alert('기수를 1개 이상 선택해주세요.') }
+      payload.target_cohort = targetCohorts
+    }
     if (targetType === 'class') {
       if (!targetClassId) { setIsSubmitting(false); return alert('반을 선택해주세요.') }
       payload.target_class_id = targetClassId
@@ -152,7 +155,7 @@ export default function ScheduleManagementPage() {
     setTeacherId(sc.teacher_id || '')
     setLocation(sc.location || '')
     setTargetType(sc.target_type)
-    if (sc.target_type === 'cohort') setTargetCohort(String(sc.target_cohort))
+    if (sc.target_type === 'cohort') setTargetCohorts(sc.target_cohort || [])
     if (sc.target_type === 'class') setTargetClassId(sc.target_class_id || '')
     if (sc.target_type === 'individual') setTargetUserId(sc.target_user_id || '')
     setIsTitleManual(true)
@@ -164,7 +167,7 @@ export default function ScheduleManagementPage() {
     setEditingId(null)
     setTitle(''); setIsTitleManual(false); setLocation('')
     setScheduleType('online'); setScheduleDate(''); setStartTime('10:00'); setEndTime('12:00')
-    setTeacherId(''); setTargetType('all'); setTargetClassId(''); setTargetUserId('')
+    setTeacherId(''); setTargetType('all'); setTargetCohorts([4]); setTargetClassId(''); setTargetUserId('')
   }
 
   const handleDelete = async (id: string) => {
@@ -215,7 +218,7 @@ export default function ScheduleManagementPage() {
     const typeName = TYPE_CONFIG[scheduleType]?.label || scheduleType
     switch (targetType) {
       case 'all': return `전체 단원 ${typeName}`
-      case 'cohort': return `${targetCohort}기 전체 ${typeName}`
+      case 'cohort': return targetCohorts.length > 0 ? `${[...targetCohorts].sort((a, b) => a - b).join(',')}기 전체 ${typeName}` : ''
       case 'class': {
         const cls = allClasses.find(c => c.id === targetClassId)
         return cls ? `${cls.cohort}기 ${cls.name} ${typeName}` : ''
@@ -226,7 +229,7 @@ export default function ScheduleManagementPage() {
       }
       default: return ''
     }
-  }, [targetType, targetCohort, targetClassId, targetUserId, scheduleType, allClasses, allStudents])
+  }, [targetType, targetCohorts, targetClassId, targetUserId, scheduleType, allClasses, allStudents])
 
   const effectiveTitle = isTitleManual ? title : autoTitle
 
@@ -246,7 +249,7 @@ export default function ScheduleManagementPage() {
   const getTargetLabel = (sc: any) => {
     switch (sc.target_type) {
       case 'all': return '전체 단원'
-      case 'cohort': return `${sc.target_cohort}기 전용`
+      case 'cohort': return `${[...(sc.target_cohort || [])].sort((a: number, b: number) => a - b).join(',')}기 전용`
       case 'class': return `[${sc.target_class?.cohort}기] ${sc.target_class?.name}`
       case 'individual': return `[개별] ${sc.target_user?.name}`
       default: return '-'
@@ -312,9 +315,22 @@ export default function ScheduleManagementPage() {
                   <option value="individual">개별 학생</option>
                 </select>
                 {targetType === 'cohort' && (
-                  <select className={styles.select} value={targetCohort} onChange={e => setTargetCohort(e.target.value)}>
-                    {[1,2,3,4].map(n => <option key={n} value={n}>{n}기 전체</option>)}
-                  </select>
+                  <div className={styles.row} style={{ flexWrap: 'wrap', gap: '10px' }}>
+                    {[1,2,3,4].map(n => (
+                      <label key={n} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={targetCohorts.includes(n)}
+                          onChange={e => {
+                            setTargetCohorts(prev =>
+                              e.target.checked ? [...prev, n] : prev.filter(c => c !== n)
+                            )
+                          }}
+                        />
+                        {n}기
+                      </label>
+                    ))}
+                  </div>
                 )}
                 {targetType === 'class' && (
                   <div className={styles.row}>

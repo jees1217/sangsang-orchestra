@@ -76,7 +76,9 @@ export default async function StudentDashboard() {
   // 본인에게 해당하는 데이터 필터 (RLS 정책과 이중 보호)
   const isForMe = (item: any) => {
     if (item.target_type === 'all') return true
-    if (item.target_type === 'cohort' && cohort !== null && item.target_cohort === cohort) return true
+    if (item.target_type === 'cohort' && cohort !== null && (
+      Array.isArray(item.target_cohort) ? item.target_cohort.includes(cohort) : item.target_cohort === cohort
+    )) return true
     if (item.target_type === 'class' && classId && item.target_class_id === classId) return true
     if (item.target_type === 'individual' && item.target_user_id === user.id) return true
     return false

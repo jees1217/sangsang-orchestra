@@ -44,7 +44,7 @@ export default function StudentSchedulesPage() {
       // 3. 나에게 해당하는 일정만 영리하게 필터링
       const mySchedules = (allSchedules || []).filter(sc => {
         if (sc.target_type === 'all') return true
-        if (sc.target_type === 'cohort' && sc.target_cohort === student.cohort) return true
+        if (sc.target_type === 'cohort' && (sc.target_cohort || []).includes(student.cohort)) return true
         if (sc.target_type === 'class' && sc.target_class_id === student.class_id) return true
         if (sc.target_type === 'individual' && sc.target_user_id === user.id) return true
         return false
