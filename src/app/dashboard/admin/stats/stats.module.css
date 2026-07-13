@@ -31,3 +31,26 @@
 
 .empty { text-align: center; color: #a0aec0; padding: 40px 0; }
 .loading { text-align: center; padding: 50px; color: #666; font-size: 18px; }
+
+/* ── 시수 현황 ── */
+.hoursCardGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.hoursCard { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; text-align: center; }
+.hoursCardTotal { background: #ebf8ff; border-color: #90cdf4; }
+.hoursCardLabel { font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 8px; }
+.hoursCardValue { font-size: 22px; font-weight: bold; color: #2b6cb0; }
+.hoursCardTotal .hoursCardValue { color: #2c5282; }
+.hoursCardCount { font-size: 13px; color: #718096; margin-top: 4px; }
+
+.hoursTableWrap { overflow-x: auto; }
+.hoursTable { width: 100%; border-collapse: collapse; min-width: 640px; }
+.hoursTable th { text-align: center; font-size: 13px; font-weight: 700; color: #4a5568; padding: 10px 8px; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
+.hoursTable th:first-child { text-align: left; }
+.hoursTable td { text-align: center; padding: 12px 8px; border-bottom: 1px solid #edf2f7; font-size: 14px; }
+.hoursTeacherName { text-align: left !important; font-weight: 600; color: #2d3748; white-space: nowrap; }
+.hoursCellTime { display: block; font-weight: 700; color: #2d3748; }
+.hoursCellCount { display: block; font-size: 12px; color: #a0aec0; margin-top: 2px; }
+.hoursCellEmpty { color: #cbd5e1; }
+.hoursTotalCol { background: #f7fafc; font-weight: bold; }
+.hoursTotalCol .hoursCellTime { color: #2b6cb0; }
+.hoursUnassignedRow { background: #fffaf0; }
+.hoursUnassignedRow .hoursTeacherName { color: #c05621; }
