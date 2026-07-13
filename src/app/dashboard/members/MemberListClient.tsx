@@ -68,13 +68,13 @@ type ImportResult = {
 }
 
 const roleLabels: Record<string, string> = {
-  admin: '관리자', director: '디렉터', teacher: '선생님', student: '학생',
+  admin: '관리자', director: '옵저버', teacher: '선생님', student: '학생',
 }
 
 const roleMap: Record<string, string> = {
   '학생': 'student', student: 'student',
   '선생님': 'teacher', teacher: 'teacher',
-  '디렉터': 'director', director: 'director',
+  '옵저버': 'director', '디렉터': 'director', director: 'director',
   '관리자': 'admin', admin: 'admin',
 }
 
@@ -677,6 +677,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
   // ── 소속반 셀 ──
   const renderClassCell = (u: User) => {
     if (u.role === 'student') {
+      // 옵저버(비관리자)는 소속반을 읽기 전용으로만 표시
+      if (!isAdmin) {
+        const cls = allClassData.find(c => c.id === u.class_id)
+        return <span style={{ fontSize: 13, color: cls ? '#2d3748' : '#a0aec0' }}>{cls?.name || '미배정'}</span>
+      }
       return (
         <select value={u.class_id || ''} onChange={e => handleStudentClassChange(u.id, e.target.value || null)}
           className={styles.classSelect} disabled={loadingId === u.id}>
@@ -697,7 +702,9 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                 </span>
               ))
           }
-          <button className={styles.classAssignBtn} onClick={() => openTeacherClassModal(u)}>반 배정</button>
+          {isAdmin && (
+            <button className={styles.classAssignBtn} onClick={() => openTeacherClassModal(u)}>반 배정</button>
+          )}
         </div>
       )
     }
@@ -728,9 +735,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
               />
             </>
           )}
-          <button className={styles.secondaryBtn} onClick={() => setClassManageOpen(true)}>
-            🏫 클래스 관리
-          </button>
+          {isAdmin && (
+            <button className={styles.secondaryBtn} onClick={() => setClassManageOpen(true)}>
+              🏫 클래스 관리
+            </button>
+          )}
           <button className={styles.secondaryBtn} onClick={handleExportCSV}>
             ⬇️ 명부 다운로드 (CSV)
           </button>
@@ -743,7 +752,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
           value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         <select className={styles.filterSelect} value={filterRole}       onChange={e => setFilterRole(e.target.value)}>
           <option value="all">모든 권한</option><option value="student">학생만</option>
-          <option value="teacher">선생님만</option><option value="director">디렉터만</option>
+          <option value="teacher">선생님만</option><option value="director">옵저버만</option>
           <option value="admin">관리자만</option>
         </select>
         <select className={styles.filterSelect} value={filterCohort}     onChange={e => setFilterCohort(e.target.value)}>
@@ -806,12 +815,20 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                 <td style={{ fontWeight: 600 }}>{u.name}</td>
                 <td>{u.email}</td>
                 <td>
-                  <select value={u.role.toLowerCase()} onChange={e => handleRoleChange(u.id, e.target.value)}
-                    disabled={loadingId === u.id} className={`${styles.roleSelect} ${getRoleBadgeClass(u.role)}`}>
-                    <option value="admin">관리자</option><option value="director">디렉터</option>
-                    <option value="teacher">선생님</option><option value="student">학생</option>
-                  </select>
-                  {loadingId === u.id && <span style={{ marginLeft: 8, fontSize: 12 }}>⏳</span>}
+                  {isAdmin ? (
+                    <>
+                      <select value={u.role.toLowerCase()} onChange={e => handleRoleChange(u.id, e.target.value)}
+                        disabled={loadingId === u.id} className={`${styles.roleSelect} ${getRoleBadgeClass(u.role)}`}>
+                        <option value="admin">관리자</option><option value="director">옵저버</option>
+                        <option value="teacher">선생님</option><option value="student">학생</option>
+                      </select>
+                      {loadingId === u.id && <span style={{ marginLeft: 8, fontSize: 12 }}>⏳</span>}
+                    </>
+                  ) : (
+                    <span className={`${styles.roleSelect} ${getRoleBadgeClass(u.role)}`} style={{ display: 'inline-block', pointerEvents: 'none' }}>
+                      {roleLabels[u.role.toLowerCase()] || u.role}
+                    </span>
+                  )}
                 </td>
                 <td>{u.cohort ? `${u.cohort}기` : '-'}</td>
                 <td>{u.instrument || '-'}</td>
@@ -916,9 +933,11 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                             <span className={styles.privateValue} style={{ whiteSpace: 'pre-wrap' }}>{u.note || <span className={styles.privateEmpty}>미입력</span>}</span>
                           </div>
                         </div>
-                        <div className={styles.privatePanelActions}>
-                          <button className={styles.cmEditBtn} onClick={() => openPrivateEdit(u)}>수정</button>
-                        </div>
+                        {isAdmin && (
+                          <div className={styles.privatePanelActions}>
+                            <button className={styles.cmEditBtn} onClick={() => openPrivateEdit(u)}>수정</button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </td>
@@ -958,7 +977,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
               <div className={styles.formGroup}><label>권한</label>
                 <select value={newMember.role} onChange={e => setNewMember({ ...newMember, role: e.target.value })}>
                   <option value="student">학생 (Student)</option><option value="teacher">선생님 (Teacher)</option>
-                  <option value="director">디렉터 (Director)</option><option value="admin">관리자 (Admin)</option></select></div>
+                  <option value="director">옵저버 (Observer)</option><option value="admin">관리자 (Admin)</option></select></div>
               <div className={styles.modalActions}>
                 <button type="button" className={styles.secondaryBtn} onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>취소</button>
                 <button type="submit" className={styles.primaryBtn} disabled={isSubmitting} style={{ justifyContent: 'center' }}>

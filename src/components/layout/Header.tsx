@@ -12,7 +12,7 @@ interface HeaderProps {
 
 const ROLE_LABELS: Record<string, string> = {
   admin: '관리자',
-  director: '디렉터',
+  director: '옵저버',
   teacher: '선생님',
   student: '학생'
 }

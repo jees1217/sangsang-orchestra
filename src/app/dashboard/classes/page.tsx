@@ -108,7 +108,8 @@ export default function ClassesPage() {
   if (loading) return <div className={styles.loading}>수업 정보를 불러오는 중입니다...</div>
 
   const isStudent = userRole === 'student'
-  const canEdit = userRole === 'admin' || userRole === 'director'
+  // 옵저버(director)는 편집 불가 — 관리자만 반 편집 가능
+  const canEdit = userRole === 'admin'
 
   return (
     <div className={styles.container}>

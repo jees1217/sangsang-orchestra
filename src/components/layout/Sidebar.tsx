@@ -28,9 +28,9 @@ const MENUS = {
     { label: '전체 모니터링', path: '/dashboard/director/monitoring', icon: '📊' },
     { label: '출결/평가 현황', path: '/dashboard/evaluations', icon: '📈' },
     { label: '출석 대체 현황', path: '/dashboard/substitutions', icon: '🙋' },
-    { label: '공지 관리', path: '/dashboard/notices', icon: '📢' },
-    { label: '악보 관리', path: '/dashboard/scores', icon: '🎵' },
-    { label: '통합 일정 관리', path: '/dashboard/schedules', icon: '📅' },
+    { label: '공지사항', path: '/dashboard/notices', icon: '📢' },
+    { label: '악보', path: '/dashboard/scores', icon: '🎵' },
+    { label: '통합 일정', path: '/dashboard/schedules', icon: '📅' },
   ],
   admin: [
     { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },

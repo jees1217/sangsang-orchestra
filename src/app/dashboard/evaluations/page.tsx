@@ -89,7 +89,8 @@ export default function EvaluationsPage() {
   }[]>([])
   const [termReportLoading, setTermReportLoading] = useState(false)
 
-  const canWrite = userRole === 'teacher' || userRole === 'admin' || userRole === 'director'
+  // 옵저버(director)는 열람만 가능 — 쓰기/수정 권한 없음
+  const canWrite = userRole === 'teacher' || userRole === 'admin'
 
   const supabase = createClient()
 
@@ -314,11 +315,11 @@ export default function EvaluationsPage() {
     }
   }
 
-  // 본인(작성자)이거나 admin/director면 수정·삭제 가능. teacher는 본인이 기록한 건만.
+  // 본인(작성자)이거나 admin이면 수정·삭제 가능. teacher는 본인이 기록한 건만. 옵저버(director)는 불가.
   const canEditAttendance = (a: AttendanceRecord) =>
-    userRole === 'admin' || userRole === 'director' || (userRole === 'teacher' && a.teacher_id === currentUser?.id)
+    userRole === 'admin' || (userRole === 'teacher' && a.teacher_id === currentUser?.id)
   const canEditEval = (e: Evaluation) =>
-    userRole === 'admin' || userRole === 'director' || (userRole === 'teacher' && e.writer_id === currentUser?.id)
+    userRole === 'admin' || (userRole === 'teacher' && e.writer_id === currentUser?.id)
 
   const handleAttendanceStatusChange = async (attId: string, newStatus: 'PRESENT' | 'LATE' | 'ABSENT') => {
     try {
@@ -574,7 +575,7 @@ export default function EvaluationsPage() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div>
-          <h1 className={styles.title}>출결 / 평가 관리</h1>
+          <h1 className={styles.title}>{canWrite ? '출결 / 평가 관리' : '출결 / 평가 현황'}</h1>
           <p className={styles.subtitle}>학생 {students.length}명 · 최근 30일 출석 기준</p>
         </div>
         {(userRole === 'admin' || userRole === 'director') && (
@@ -901,7 +902,8 @@ export default function EvaluationsPage() {
                 )}
               </div>
 
-              {/* ── 평가 등록 섹션 ── */}
+              {/* ── 평가 등록 섹션 (옵저버는 열람만) ── */}
+              {canWrite && (
               <div className={styles.card}>
                 <h2 className={styles.sectionTitle}>✏️ 평가 등록</h2>
                 <form onSubmit={handleSubmit}>
@@ -930,6 +932,7 @@ export default function EvaluationsPage() {
                   </button>
                 </form>
               </div>
+              )}
 
               {/* ── 평가 내역 섹션 ── */}
               <div className={styles.card}>

@@ -44,7 +44,7 @@ export default async function DirectorDashboard() {
     return (
       <div style={{ padding: '40px', fontFamily: 'sans-serif', textAlign: 'center' }}>
         <h1 style={{ fontSize: '28px', color: '#e74c3c', marginBottom: '16px' }}>⚠️ 접근 권한 없음</h1>
-        <p style={{ color: '#666' }}>디렉터(Director) 전용 페이지입니다.</p>
+        <p style={{ color: '#666' }}>옵저버(Observer) 전용 페이지입니다.</p>
         <a href="/dashboard" style={{ color: '#00A99D', marginTop: '16px', display: 'inline-block' }}>
           대시보드로 돌아가기
         </a>
@@ -52,7 +52,7 @@ export default async function DirectorDashboard() {
     )
   }
 
-  const name = directorData?.name || '디렉터'
+  const name = directorData?.name || '옵저버'
   const todayStr = new Date().toISOString().split('T')[0]
   const todayDisplay = new Date().toLocaleDateString('ko-KR', {
     month: 'long', day: 'numeric', weekday: 'long',
@@ -122,7 +122,7 @@ export default async function DirectorDashboard() {
       {/* ── 웰컴 배너 ── */}
       <div className={styles.welcomeBanner}>
         <div>
-          <div className={styles.welcomeGreeting}>안녕하세요, {name} 디렉터님! 🎻</div>
+          <div className={styles.welcomeGreeting}>안녕하세요, {name} 옵저버님! 🎻</div>
           <div className={styles.welcomeMeta}>
             <span>전체 단원 {studentCount}명</span>
             <span className={styles.sep}>·</span>

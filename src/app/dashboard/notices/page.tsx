@@ -210,10 +210,11 @@ export default function NoticesPage() {
   if (loading) return <div className={styles.loading}>페이지를 불러오는 중입니다...</div>
 
   const isManagement = userRole === 'admin' || userRole === 'director'
-  const isStudent = userRole === 'student'
+  // 옵저버(director)와 학생은 공지·과제를 열람만 한다 (작성/삭제 불가)
+  const isReadOnlyViewer = userRole === 'student' || userRole === 'director'
 
-  // 학생: 읽기 전용 리스트만 표시
-  if (isStudent) {
+  // 학생·옵저버: 읽기 전용 리스트만 표시
+  if (isReadOnlyViewer) {
     return (
       <div className={styles.container}>
         <h1 className={styles.title}>공지사항</h1>

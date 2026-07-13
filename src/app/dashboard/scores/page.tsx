@@ -7,7 +7,8 @@ import styles from './scores-manage.module.css'
 export default function ScoresManagementPage() {
   const [loading, setLoading] = useState(true)
   const [scores, setScores] = useState<any[]>([])
-  
+  const [userRole, setUserRole] = useState('')
+
   // 입력 폼 상태
   const [title, setTitle] = useState('')
   const [composer, setComposer] = useState('')
@@ -18,9 +19,21 @@ export default function ScoresManagementPage() {
 
   const supabase = createClient()
 
+  // 관리자만 악보 등록/삭제 가능. 옵저버(director)는 열람만.
+  const isAdmin = userRole === 'admin'
+
   useEffect(() => {
-    fetchScores()
+    init()
   }, [])
+
+  const init = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single()
+      setUserRole(me?.role || '')
+    }
+    await fetchScores()
+  }
 
   const fetchScores = async () => {
     const { data } = await supabase.from('scores').select('*').order('created_at', { ascending: false })
@@ -95,10 +108,11 @@ export default function ScoresManagementPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>🎼 중앙 악보 보관함 관리</h1>
-      
+      <h1 className={styles.title}>🎼 중앙 악보 보관함{isAdmin ? ' 관리' : ''}</h1>
+
       <div className={styles.layout}>
-        {/* 왼쪽: 업로드 폼 */}
+        {/* 왼쪽: 업로드 폼 (관리자 전용) */}
+        {isAdmin && (
         <div className={styles.formSection}>
           <h2 className={styles.sectionTitle}>새 악보 등록</h2>
           <form onSubmit={handleSubmit}>
@@ -138,9 +152,10 @@ export default function ScoresManagementPage() {
             </button>
           </form>
         </div>
+        )}
 
         {/* 오른쪽: 악보 보관 목록 */}
-        <div className={styles.listSection}>
+        <div className={styles.listSection} style={!isAdmin ? { width: '100%' } : undefined}>
           <h2 className={styles.sectionTitle}>현재 보관 중인 악보 ({scores.length}개)</h2>
           {scores.length === 0 ? (
             <div style={{ textAlign: 'center', color: '#a0aec0', padding: '40px 0' }}>보관함이 비어있습니다.</div>
@@ -157,7 +172,9 @@ export default function ScoresManagementPage() {
                     <span style={{ color: '#4a5568' }}>{score.instrument || '총보'}</span>
                   </div>
                 </div>
-                <button className={styles.deleteBtn} onClick={() => handleDelete(score.id, score.file_url)}>삭제</button>
+                {isAdmin && (
+                  <button className={styles.deleteBtn} onClick={() => handleDelete(score.id, score.file_url)}>삭제</button>
+                )}
               </div>
             ))
           )}

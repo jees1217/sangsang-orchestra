@@ -20,6 +20,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: string; colorClass: str
 export default function ScheduleManagementPage() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState('')
 
   const [schedules, setSchedules] = useState<any[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
@@ -60,6 +61,9 @@ export default function ScheduleManagementPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setCurrentUser(user)
+
+      const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single()
+      setUserRole(me?.role || '')
 
       const [{ data: tData }, { data: cData }, { data: sData }, { data: availData }] = await Promise.all([
         supabase.from('users').select('id, name').in('role', ['teacher', 'director']),
@@ -267,9 +271,12 @@ export default function ScheduleManagementPage() {
     </div>
   )
 
+  // 관리자만 일정 등록/수정/삭제 가능. 옵저버(director)는 캘린더·목록 열람만.
+  const isAdmin = userRole === 'admin'
+
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>📅 통합 일정 관리</h1>
+      <h1 className={styles.title}>📅 통합 일정{isAdmin ? ' 관리' : ''}</h1>
 
       {fetchError && (
         <div style={{
@@ -284,7 +291,8 @@ export default function ScheduleManagementPage() {
       )}
 
       <div className={styles.layout}>
-        {/* ──────── 왼쪽: 폼 ──────── */}
+        {/* ──────── 왼쪽: 폼 (관리자 전용) ──────── */}
+        {isAdmin && (
         <div className={styles.leftPanel}>
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>
@@ -429,9 +437,10 @@ export default function ScheduleManagementPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* ──────── 오른쪽: 캘린더 + 일정 상세 ──────── */}
-        <div className={styles.rightPanel}>
+        <div className={styles.rightPanel} style={!isAdmin ? { width: '100%' } : undefined}>
           <div className={styles.card}>
             {/* 캘린더 헤더 */}
             <div className={styles.calHeader}>
@@ -516,10 +525,12 @@ export default function ScheduleManagementPage() {
                       <TypeBadge type={sc.schedule_type} />
                       <span className={styles.targetBadge}>👥 {getTargetLabel(sc)}</span>
                     </div>
-                    <div className={styles.cardActions}>
-                      <button className={styles.editBtn} onClick={() => handleEdit(sc)}>수정</button>
-                      <button className={styles.deleteBtn} onClick={() => handleDelete(sc.id)}>삭제</button>
-                    </div>
+                    {isAdmin && (
+                      <div className={styles.cardActions}>
+                        <button className={styles.editBtn} onClick={() => handleEdit(sc)}>수정</button>
+                        <button className={styles.deleteBtn} onClick={() => handleDelete(sc.id)}>삭제</button>
+                      </div>
+                    )}
                   </div>
                   <div className={styles.scTitle}>{sc.title}</div>
                   <div className={styles.scMeta}>

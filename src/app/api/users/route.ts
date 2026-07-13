@@ -24,7 +24,7 @@ async function requireAdminOrDirector() {
 
   const role = (me?.role ?? '').toLowerCase();
   if (role !== 'admin' && role !== 'director') {
-    return { ok: false as const, status: 403, error: '관리자 또는 디렉터만 접근할 수 있습니다.' };
+    return { ok: false as const, status: 403, error: '관리자 또는 옵저버만 접근할 수 있습니다.' };
   }
   return { ok: true as const };
 }

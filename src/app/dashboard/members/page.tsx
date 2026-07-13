@@ -48,7 +48,7 @@ export default async function MembersPage() {
     return (
       <div style={{ padding: '40px', fontFamily: 'sans-serif', textAlign: 'center' }}>
         <h1 style={{ fontSize: '28px', color: '#e74c3c', marginBottom: '16px' }}>⚠️ 접근 권한 없음</h1>
-        <p style={{ color: '#666' }}>관리자 및 디렉터 전용 페이지입니다.</p>
+        <p style={{ color: '#666' }}>관리자 및 옵저버 전용 페이지입니다.</p>
       </div>
     )
   }

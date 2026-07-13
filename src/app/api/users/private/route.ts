@@ -22,7 +22,7 @@ export async function PATCH(request: Request) {
 
     const role = (me?.role ?? '').toLowerCase()
     if (role !== 'admin' && role !== 'director') {
-      return NextResponse.json({ error: '관리자 또는 디렉터만 수정할 수 있습니다.' }, { status: 403 })
+      return NextResponse.json({ error: '관리자 또는 옵저버만 수정할 수 있습니다.' }, { status: 403 })
     }
 
     const body = await request.json()
