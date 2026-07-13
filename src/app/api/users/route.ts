@@ -9,9 +9,10 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// 서비스 롤 키로 RLS를 우회하는 라우트이므로, 매 요청마다 호출자가 admin/director인지 직접 검증해야 함
+// 서비스 롤 키로 RLS를 우회하는 라우트이므로, 매 요청마다 호출자가 admin인지 직접 검증해야 함
 // (이 검증이 없으면 인증 없이도 누구나 계정 생성/삭제/비밀번호 재설정이 가능해짐)
-async function requireAdminOrDirector() {
+// 옵저버(director)는 열람만 가능하므로 계정 관리 API 접근 불가.
+async function requireAdmin() {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, status: 401, error: '인증이 필요합니다.' };
@@ -23,8 +24,8 @@ async function requireAdminOrDirector() {
     .single();
 
   const role = (me?.role ?? '').toLowerCase();
-  if (role !== 'admin' && role !== 'director') {
-    return { ok: false as const, status: 403, error: '관리자 또는 옵저버만 접근할 수 있습니다.' };
+  if (role !== 'admin') {
+    return { ok: false as const, status: 403, error: '관리자만 접근할 수 있습니다.' };
   }
   return { ok: true as const };
 }
@@ -32,7 +33,7 @@ async function requireAdminOrDirector() {
 // [1] 신규 단원 추가 (POST) - 기수 및 악기 추가됨
 export async function POST(request: Request) {
   try {
-    const auth = await requireAdminOrDirector();
+    const auth = await requireAdmin();
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const body = await request.json();
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
 // [2] 기존 단원 삭제 (DELETE)
 export async function DELETE(request: Request) {
   try {
-    const auth = await requireAdminOrDirector();
+    const auth = await requireAdmin();
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const { searchParams } = new URL(request.url);
@@ -110,7 +111,7 @@ export async function DELETE(request: Request) {
 // [3] 관리자 직권 비밀번호 초기화 (PATCH)
 export async function PATCH(request: Request) {
   try {
-    const auth = await requireAdminOrDirector();
+    const auth = await requireAdmin();
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
     const { id, password } = await request.json();

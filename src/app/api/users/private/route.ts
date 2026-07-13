@@ -20,9 +20,10 @@ export async function PATCH(request: Request) {
       .eq('id', user.id)
       .single()
 
+    // 옵저버(director)는 열람만 가능 — 개인정보/활성화 수정은 관리자만
     const role = (me?.role ?? '').toLowerCase()
-    if (role !== 'admin' && role !== 'director') {
-      return NextResponse.json({ error: '관리자 또는 옵저버만 수정할 수 있습니다.' }, { status: 403 })
+    if (role !== 'admin') {
+      return NextResponse.json({ error: '관리자만 수정할 수 있습니다.' }, { status: 403 })
     }
 
     const body = await request.json()
