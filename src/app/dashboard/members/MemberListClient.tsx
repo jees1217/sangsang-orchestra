@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
 
@@ -801,8 +801,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
           </thead>
           <tbody>
             {filteredUsers.map(u => (
-              <>
-              <tr key={u.id} className={[
+              <React.Fragment key={u.id}>
+              <tr className={[
                 expandedRows.has(u.id) ? styles.expandedMainRow : '',
                 u.is_active === false ? styles.inactiveRow : '',
               ].filter(Boolean).join(' ')}>
@@ -943,7 +943,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                   </td>
                 </tr>
               )}
-              </>
+              </React.Fragment>
             ))}
             {filteredUsers.length === 0 && (
               <tr><td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>조건에 맞는 단원이 없습니다.</td></tr>
