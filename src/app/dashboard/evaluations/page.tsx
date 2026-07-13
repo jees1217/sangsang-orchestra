@@ -578,7 +578,7 @@ export default function EvaluationsPage() {
           <h1 className={styles.title}>{canWrite ? '출결 / 평가 관리' : '출결 / 평가 현황'}</h1>
           <p className={styles.subtitle}>학생 {students.length}명 · 최근 30일 출석 기준</p>
         </div>
-        {(userRole === 'admin' || userRole === 'director') && (
+        {userRole === 'admin' && (
           <button onClick={handleDownloadCSV} className={styles.csvBtn}>
             ⬇ 전체 평가 내역 (CSV)
           </button>
