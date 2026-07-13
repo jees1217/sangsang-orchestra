@@ -136,6 +136,9 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
 
   const supabase = createClient()
 
+  // 관리자만 단원 추가 및 관리(비활성/비번 초기화/삭제) 기능 사용 가능. 디렉터는 열람만.
+  const isAdmin = viewerRole === 'admin'
+
   useEffect(() => { fetchClasses() }, [])
 
   const fetchClasses = async () => {
@@ -708,19 +711,23 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       {/* ── 액션 바 ── */}
       <div className={styles.actionBar}>
         <div className={styles.actionButtons}>
-          <button className={styles.primaryBtn} onClick={() => setIsModalOpen(true)}>
-            <span style={{ fontSize: '16px' }}>+</span> 단원 추가
-          </button>
-          <button className={styles.secondaryBtn} onClick={() => fileInputRef.current?.click()}>
-            📥 CSV 가져오기
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            style={{ display: 'none' }}
-            onChange={handleFileSelect}
-          />
+          {isAdmin && (
+            <>
+              <button className={styles.primaryBtn} onClick={() => setIsModalOpen(true)}>
+                <span style={{ fontSize: '16px' }}>+</span> 단원 추가
+              </button>
+              <button className={styles.secondaryBtn} onClick={() => fileInputRef.current?.click()}>
+                📥 CSV 가져오기
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: 'none' }}
+                onChange={handleFileSelect}
+              />
+            </>
+          )}
           <button className={styles.secondaryBtn} onClick={() => setClassManageOpen(true)}>
             🏫 클래스 관리
           </button>
@@ -780,7 +787,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
               <th style={{ width: 40, padding: '16px 8px' }}></th>
               <th>이름</th><th>이메일</th><th>권한</th><th>기수</th>
               <th>악기</th><th>소속반 / 담당반</th><th>가입일</th>
-              <th style={{ textAlign: 'center' }}>관리</th>
+              {isAdmin && <th style={{ textAlign: 'center' }}>관리</th>}
             </tr>
           </thead>
           <tbody>
@@ -810,24 +817,26 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
                 <td>{u.instrument || '-'}</td>
                 <td>{renderClassCell(u)}</td>
                 <td>{new Date(u.created_at).toLocaleDateString('ko-KR')}</td>
-                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                  <button
-                    className={u.is_active === false ? styles.activateBtn : styles.deactivateBtn}
-                    onClick={() => handleToggleActive(u.id, u.is_active !== false)}
-                    disabled={loadingId === u.id}
-                    style={{ marginRight: '4px' }}>
-                    {u.is_active === false ? '활성화' : '비활성'}
-                  </button>
-                  <button className={styles.deleteBtn} style={{ color: '#0ea5e9', marginRight: '4px' }}
-                    onClick={() => handleResetPassword(u.id)} disabled={loadingId === u.id}>비번 초기화</button>
-                  <button className={styles.deleteBtn} onClick={() => handleDelete(u.id, u.name)} disabled={loadingId === u.id}>삭제</button>
-                </td>
+                {isAdmin && (
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <button
+                      className={u.is_active === false ? styles.activateBtn : styles.deactivateBtn}
+                      onClick={() => handleToggleActive(u.id, u.is_active !== false)}
+                      disabled={loadingId === u.id}
+                      style={{ marginRight: '4px' }}>
+                      {u.is_active === false ? '활성화' : '비활성'}
+                    </button>
+                    <button className={styles.deleteBtn} style={{ color: '#0ea5e9', marginRight: '4px' }}
+                      onClick={() => handleResetPassword(u.id)} disabled={loadingId === u.id}>비번 초기화</button>
+                    <button className={styles.deleteBtn} onClick={() => handleDelete(u.id, u.name)} disabled={loadingId === u.id}>삭제</button>
+                  </td>
+                )}
               </tr>
 
               {/* ── 펼쳐진 개인정보 행 ── */}
               {expandedRows.has(u.id) && (
                 <tr key={`${u.id}-private`} className={styles.expandedRow}>
-                  <td colSpan={9} className={styles.expandedCell}>
+                  <td colSpan={isAdmin ? 9 : 8} className={styles.expandedCell}>
                     {editingPrivate === u.id ? (
                       <div className={styles.privatePanel}>
                         <div className={styles.privatePanelGrid}>
@@ -918,7 +927,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
               </>
             ))}
             {filteredUsers.length === 0 && (
-              <tr><td colSpan={9} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>조건에 맞는 단원이 없습니다.</td></tr>
+              <tr><td colSpan={isAdmin ? 9 : 8} style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>조건에 맞는 단원이 없습니다.</td></tr>
             )}
           </tbody>
         </table>
