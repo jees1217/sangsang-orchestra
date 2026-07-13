@@ -9,7 +9,12 @@ const DAY_NAMES = ['일요일', '월요일', '화요일', '수요일', '목요�
 export default function StudentSchedulesPage() {
   const [loading, setLoading] = useState(true)
   const [schedules, setSchedules] = useState<any[]>([])
+  const [showPast, setShowPast] = useState(false)
   const supabase = createClient()
+
+  // 타임존 문제 방지를 위해 로컬 날짜 문자열(YYYY-MM-DD) 추출
+  const today = new Date()
+  const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
   useEffect(() => {
     fetchMySchedules()
@@ -29,15 +34,10 @@ export default function StudentSchedulesPage() {
 
       if (!student) return
 
-      // 2. 전체 일정 중 '오늘 날짜 이후'의 일정만 오름차순으로 가져오기
-      const today = new Date()
-      // 타임존 문제 방지를 위해 로컬 날짜 문자열(YYYY-MM-DD) 추출
-      const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
-
+      // 2. 전체 일정을 오름차순으로 가져오기 (지난 일정 포함)
       const { data: allSchedules } = await supabase
         .from('schedules')
         .select('*, teacher:teacher_id(name)')
-        .gte('schedule_date', todayStr)
         .order('schedule_date', { ascending: true })
         .order('start_time', { ascending: true })
 
@@ -58,6 +58,10 @@ export default function StudentSchedulesPage() {
     }
   }
 
+  const visibleSchedules = showPast
+    ? schedules
+    : schedules.filter(sc => sc.schedule_date.substring(0, 10) >= todayStr)
+
   // 뱃지 색상 매퍼
   const getScheduleTypeBadge = (type: string) => {
     switch (type) {
@@ -76,29 +80,38 @@ export default function StudentSchedulesPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>🗓️ 다가오는 내 수업 및 일정</h1>
-      <p className={styles.subtitle}>
-        나에게 배정된 온라인 수업, 오프라인 합주, 그리고 특별 일정들을 확인하세요.<br/>
-        상세한 프로그램 내용이나 준비물은 공지사항을 참고해 주시기 바랍니다.
-      </p>
+      <div className={styles.headerRow}>
+        <div>
+          <h1 className={styles.title}>🗓️ {showPast ? '나의 전체 일정' : '다가오는 내 수업 및 일정'}</h1>
+          <p className={styles.subtitle}>
+            나에게 배정된 온라인 수업, 오프라인 합주, 그리고 특별 일정들을 확인하세요.<br/>
+            상세한 프로그램 내용이나 준비물은 공지사항을 참고해 주시기 바랍니다.
+          </p>
+        </div>
+        <label className={styles.pastToggle}>
+          <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+          지난 일정 포함해서 보기
+        </label>
+      </div>
 
-      {schedules.length === 0 ? (
+      {visibleSchedules.length === 0 ? (
         <div className={styles.empty}>
-          다가오는 일정이 없습니다. 푹 쉬면서 개인 연습에 집중해 보세요! 🎵
+          {showPast ? '등록된 일정이 없습니다.' : '다가오는 일정이 없습니다. 푹 쉬면서 개인 연습에 집중해 보세요! 🎵'}
         </div>
       ) : (
         <div className={styles.grid}>
-          {schedules.map((sc) => {
+          {visibleSchedules.map((sc) => {
             const dateObj = new Date(sc.schedule_date)
             const month = dateObj.getMonth() + 1
             const day = dateObj.getDate()
             const dayOfWeek = DAY_NAMES[dateObj.getDay()]
+            const isPast = sc.schedule_date.substring(0, 10) < todayStr
 
             // 장소가 링크인지 텍스트인지 판별
             const isLink = sc.location && sc.location.startsWith('http')
 
             return (
-              <div key={sc.id} className={styles.card}>
+              <div key={sc.id} className={`${styles.card} ${isPast ? styles.pastCard : ''}`}>
                 {/* 왼쪽 달력 아이콘 느낌의 날짜 박스 */}
                 <div className={styles.dateBox}>
                   <span className={styles.month}>{month}월</span>

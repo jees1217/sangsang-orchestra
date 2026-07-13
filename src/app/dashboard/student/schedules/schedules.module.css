@@ -2,11 +2,17 @@
 .title { font-size: 26px; font-weight: bold; color: #1b365d; margin-bottom: 8px; }
 .subtitle { font-size: 14px; color: #718096; margin-bottom: 24px; line-height: 1.5; }
 
+.headerRow { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.pastToggle { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #475569; white-space: nowrap; cursor: pointer; padding: 8px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; }
+.pastToggle input { cursor: pointer; }
+
 .grid { display: flex; flex-direction: column; gap: 16px; }
 
 /* 일정 카드 디자인 (타임라인 형태) */
 .card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: flex; align-items: center; transition: transform 0.2s; }
 .card:hover { border-color: #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transform: translateY(-2px); }
+.pastCard { opacity: 0.55; }
+.pastCard:hover { transform: none; }
 
 /* 날짜 박스 (왼쪽) */
 .dateBox { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid #edf2f7; min-width: 90px; height: 90px; }
