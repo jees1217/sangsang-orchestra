@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   computeAttendanceStats, excusedKey, absenceBreakdown, fetchCurrentTerm, scopeToTerm,
-  fetchAllPages, PAGE_SIZE, type TermWindow,
+  fetchAllPages, PAGE_SIZE, rateColorByAbsence, type TermWindow,
 } from '@/lib/attendance'
 import styles from './students.module.css'
 
@@ -227,7 +227,7 @@ export default function TeacherStudentsPage() {
           {/* ── 왼쪽: 학생 목록 ── */}
           <div className={styles.listPanel}>
             {students.map(s => {
-              const rateColor = s.attendanceRate >= 80 ? '#16a34a' : s.attendanceRate >= 60 ? '#d97706' : '#dc2626'
+              const rateColor = rateColorByAbsence(s.effectiveAbsent)
               return (
                 <div
                   key={s.id}

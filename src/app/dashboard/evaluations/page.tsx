@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   computeAttendanceStats, excusedKey, absenceBreakdown, fetchCurrentTerm, scopeToTerm,
-  fetchAllPages, PAGE_SIZE, type AttendanceStats, type TermWindow,
+  fetchAllPages, PAGE_SIZE, rateColorByAbsence, type AttendanceStats, type TermWindow,
 } from '@/lib/attendance'
 import styles from './evaluations.module.css'
 
@@ -114,6 +114,26 @@ export default function EvaluationsPage() {
   }, [attendanceLogs, excusedScheduleIds])
 
   const termLabel = currentTerm !== null ? `${currentTerm}기` : '전 기간'
+
+  // 학생 목록 정렬. 기준값이 같으면 항상 이름순(오름차순)으로 묶는다.
+  const [sortBy, setSortBy] = useState<'cohort' | 'absence'>('cohort')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const sortedStudents = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...students].sort((a, b) => {
+      let cmp = 0
+      if (sortBy === 'cohort') {
+        // cohort 미배정 학생은 방향과 무관하게 항상 맨 뒤로 보낸다.
+        if (a.cohort == null && b.cohort == null) cmp = 0
+        else if (a.cohort == null) cmp = 1
+        else if (b.cohort == null) cmp = -1
+        else cmp = (a.cohort - b.cohort) * dir
+      } else {
+        cmp = (a.stats.effectiveAbsent - b.stats.effectiveAbsent) * dir
+      }
+      return cmp !== 0 ? cmp : a.name.localeCompare(b.name, 'ko')
+    })
+  }, [students, sortBy, sortDir])
 
   const supabase = createClient()
 
@@ -812,7 +832,7 @@ export default function EvaluationsPage() {
               </thead>
               <tbody>
                 {termReport.map(r => {
-                  const rateColor = r.rate >= 80 ? '#16a34a' : r.rate >= 60 ? '#d97706' : '#dc2626'
+                  const rateColor = rateColorByAbsence(r.effectiveAbsent)
                   return (
                     <tr key={r.id}>
                       <td>
@@ -849,11 +869,30 @@ export default function EvaluationsPage() {
       <div className={styles.layout}>
         {/* ── 왼쪽: 학생 목록 ── */}
         <div className={styles.studentList}>
-          <div className={styles.listHeader}>학생 목록 ({students.length}명) · {termLabel} 기준</div>
+          <div className={styles.listHeader}>
+            <div className={styles.listHeaderTitle}>학생 목록 ({students.length}명) · {termLabel} 기준</div>
+            <div className={styles.sortControls}>
+              <select
+                className={styles.sortSelect}
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as 'cohort' | 'absence')}
+              >
+                <option value="cohort">기수순</option>
+                <option value="absence">결석순</option>
+              </select>
+              <button
+                type="button"
+                className={styles.sortDirBtn}
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+              >
+                {sortDir === 'asc' ? '오름차순 ▲' : '내림차순 ▼'}
+              </button>
+            </div>
+          </div>
           {students.length === 0 ? (
             <div className={styles.empty} style={{ padding: '20px' }}>담당 학생이 없습니다.</div>
-          ) : students.map(s => {
-            const rateColor = s.stats.rate >= 80 ? '#16a34a' : s.stats.rate >= 60 ? '#d97706' : '#dc2626'
+          ) : sortedStudents.map(s => {
+            const rateColor = rateColorByAbsence(s.stats.effectiveAbsent)
             return (
               <div
                 key={s.id}
@@ -934,7 +973,9 @@ export default function EvaluationsPage() {
                     <span className={styles.profileStatLabel}>결석{detailStats.convertedAbsent > 0 ? ' (환산 포함)' : ''}</span>
                   </div>
                   <div className={styles.profileStat}>
-                    <span className={styles.profileStatNum}>{detailStats.rate}%</span>
+                    <span className={styles.profileStatNum} style={{ color: rateColorByAbsence(detailStats.effectiveAbsent) }}>
+                      {detailStats.rate}%
+                    </span>
                     <span className={styles.profileStatLabel}>출석률</span>
                   </div>
                 </div>

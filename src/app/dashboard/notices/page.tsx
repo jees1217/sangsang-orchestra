@@ -35,6 +35,13 @@ export default function NoticesPage() {
   const [dueDate, setDueDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // 기 작성된 공지/과제 수정 (제목·내용·마감일만 — 수신 대상은 변경 불가)
+  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
   const supabase = createClient()
 
   useEffect(() => { fetchInitialData() }, [])
@@ -173,6 +180,45 @@ export default function NoticesPage() {
       alert('등록 중 오류가 발생했습니다.')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // notice.due_date(timestamptz, UTC ISO)를 <input type="datetime-local"> 값으로.
+  // 작성 폼이 datetime-local 문자열을 변환 없이 그대로 저장하므로(로컬 시각 기준),
+  // 되돌릴 때도 같은 기준(브라우저 로컬 시각)으로 표시해야 왕복이 어긋나지 않는다.
+  const toDatetimeLocalValue = (iso: string) => {
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const canEditNotice = (notice: any) =>
+    userRole === 'admin' || (userRole === 'teacher' && notice.writer_id === currentUser?.id)
+
+  const startEditNotice = (notice: any) => {
+    setEditingNoticeId(notice.id)
+    setEditTitle(notice.title)
+    setEditContent(notice.content)
+    setEditDueDate(notice.due_date ? toDatetimeLocalValue(notice.due_date) : '')
+  }
+
+  const cancelEditNotice = () => setEditingNoticeId(null)
+
+  const saveEditNotice = async (notice: any) => {
+    if (!editTitle.trim() || !editContent.trim()) return alert('제목과 내용을 입력해주세요.')
+    setSavingEdit(true)
+    try {
+      const payload: any = { title: editTitle.trim(), content: editContent.trim() }
+      if (notice.type === 'assignment') payload.due_date = editDueDate || null
+      const { error } = await supabase.from('notices').update(payload).eq('id', notice.id)
+      if (error) throw error
+      setEditingNoticeId(null)
+      await fetchNotices(userRole, currentUser.id)
+    } catch (error) {
+      console.error('수정 실패:', error)
+      alert('수정 중 오류가 발생했습니다.')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -430,28 +476,64 @@ export default function NoticesPage() {
                     <span className={styles.targetBadge}>{getTargetLabel(notice)}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {notice.due_date && (
+                    {notice.due_date && editingNoticeId !== notice.id && (
                       <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
                         마감: {new Date(notice.due_date).toLocaleDateString()}
                       </span>
                     )}
-                    {isManagement && (
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(notice.id)}
-                        style={{
-                          fontSize: '12px', color: '#e53e3e', background: 'none',
-                          border: '1px solid #e53e3e', borderRadius: '6px',
-                          padding: '4px 8px', cursor: 'pointer',
-                        }}
-                      >
-                        삭제
-                      </button>
+                    {editingNoticeId !== notice.id && (
+                      <div className={styles.cardActions}>
+                        {canEditNotice(notice) && (
+                          <button type="button" onClick={() => startEditNotice(notice)} className={styles.editBtn}>
+                            수정
+                          </button>
+                        )}
+                        {canEditNotice(notice) && (
+                          <button type="button" onClick={() => handleDelete(notice.id)} className={styles.deleteBtn}>
+                            삭제
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
-                <h3 className={styles.cardTitle}>{notice.title}</h3>
-                <div className={styles.cardContent}>{notice.content}</div>
+
+                {editingNoticeId === notice.id ? (
+                  <div className={styles.editForm}>
+                    <input
+                      type="text" className={styles.input} value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)} placeholder="제목을 입력하세요"
+                    />
+                    <textarea
+                      className={styles.textarea} value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)} placeholder="상세 내용을 작성해주세요"
+                    />
+                    {notice.type === 'assignment' && (
+                      <div className={styles.formGroup} style={{ margin: 0 }}>
+                        <label className={styles.label}>제출 마감일 (선택)</label>
+                        <input
+                          type="datetime-local" className={styles.input} value={editDueDate}
+                          onChange={(e) => setEditDueDate(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div className={styles.editActions}>
+                      <button type="button" onClick={cancelEditNotice} className={styles.cancelBtn}>취소</button>
+                      <button
+                        type="button" onClick={() => saveEditNotice(notice)} disabled={savingEdit}
+                        className={styles.saveBtn}
+                      >
+                        {savingEdit ? '저장 중...' : '저장'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className={styles.cardTitle}>{notice.title}</h3>
+                    <div className={styles.cardContent}>{notice.content}</div>
+                  </>
+                )}
+
                 <div className={styles.cardFooter}>
                   <span>작성자: {userMap[notice.writer_id] || '알 수 없음'}</span>
                   <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>

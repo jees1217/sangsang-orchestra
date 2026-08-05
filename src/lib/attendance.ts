@@ -78,6 +78,14 @@ export async function fetchAllPages(
   }
 }
 
+// 출석률 % 자체가 아니라 (환산된) 결석 횟수로 신호등 색을 매긴다.
+// 0회 = 정상, 1~2회 = 주의, 3회 이상 = 경고.
+export function rateColorByAbsence(effectiveAbsent: number): string {
+  if (effectiveAbsent <= 0) return '#16a34a'
+  if (effectiveAbsent <= 2) return '#d97706'
+  return '#dc2626'
+}
+
 /** 결석 수치의 계산 근거 문구 (툴팁용). 인정·환산이 모두 없으면 null. */
 export function absenceBreakdown(
   a: { absent: number; excused: number; convertedAbsent: number; effectiveAbsent: number },
