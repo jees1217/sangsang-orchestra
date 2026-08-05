@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  computeAttendanceStats, excusedKey, absenceBreakdown, fetchCurrentTerm, scopeToTerm,
+  fetchAllPages, PAGE_SIZE, type AttendanceStats, type TermWindow,
+} from '@/lib/attendance'
 import styles from './evaluations.module.css'
 
 const STATUS_CONFIG = {
@@ -10,16 +14,15 @@ const STATUS_CONFIG = {
   ABSENT:  { label: '결석', color: '#dc2626', bg: '#fee2e2' },
 }
 
+
 interface Student {
   id: string
   name: string
   cohort: number | null
   instrument: string | null
   classes: { name: string } | null
-  presentCount: number
-  lateCount: number
-  absentCount: number
-  attendanceRate: number
+  /** 진행 중인 기수 구간의 출결 집계 (기수 미설정이면 전 기간) */
+  stats: AttendanceStats
 }
 
 interface AttendanceRecord {
@@ -76,6 +79,8 @@ export default function EvaluationsPage() {
   // 진행 중인 기수차는 학생 데이터로 추측하지 않고 관리자가 직접 관리한다.
   const [currentTerm, setCurrentTerm] = useState<number | null>(null)
   const [termLoaded, setTermLoaded] = useState(false)
+  // 출결 집계 구간 = 진행 중인 기수. null 이면 기수 미설정이라 전 기간으로 집계한다.
+  const [termWindow, setTermWindow] = useState<TermWindow>(null)
   const [termInput, setTermInput] = useState('')
   const [endingTerm, setEndingTerm] = useState(false)
 
@@ -84,7 +89,8 @@ export default function EvaluationsPage() {
   const [selectedReportTerm, setSelectedReportTerm] = useState<number | ''>('')
   const [termReport, setTermReport] = useState<{
     id: string; name: string; cohort: number | null; instrument: string | null; className: string | null
-    present: number; late: number; absent: number; rate: number
+    present: number; late: number; absent: number; excused: number
+    convertedAbsent: number; effectiveAbsent: number; rate: number
     evalCount: number; avgScore: number | null
   }[]>([])
   const [termReportLoading, setTermReportLoading] = useState(false)
@@ -92,28 +98,31 @@ export default function EvaluationsPage() {
   // 옵저버(director)는 열람만 가능 — 쓰기/수정 권한 없음
   const canWrite = userRole === 'teacher' || userRole === 'admin'
 
+  // 선택 학생의 기수 집계. 목록(fetchInitialData)의 값을 쓰되, 출결을 인라인으로 고치면
+  // attendanceLogs 가 먼저 바뀌므로 그쪽에서 다시 파생시켜 즉시 반영되게 한다.
+  const detailStats = useMemo<AttendanceStats>(() => {
+    const counts = { present: 0, late: 0, absent: 0, excused: 0 }
+    attendanceLogs.forEach(a => {
+      if (a.status === 'PRESENT') counts.present++
+      else if (a.status === 'LATE') counts.late++
+      else if (a.status === 'ABSENT') {
+        if (a.schedule_id != null && excusedScheduleIds.has(a.schedule_id)) counts.excused++
+        else counts.absent++
+      }
+    })
+    return computeAttendanceStats(counts)
+  }, [attendanceLogs, excusedScheduleIds])
+
+  const termLabel = currentTerm !== null ? `${currentTerm}기` : '전 기간'
+
   const supabase = createClient()
 
   useEffect(() => { fetchInitialData() }, [])
   useEffect(() => { if (selectedStudent) loadDetail(selectedStudent.id) }, [selectedStudent])
   useEffect(() => { if (tab === 'session') fetchSessionSchedules() }, [tab])
   useEffect(() => { if (selectedScheduleId) loadSession(selectedScheduleId) }, [selectedScheduleId])
-  useEffect(() => { if (userRole === 'admin') fetchTermInfo() }, [userRole])
   useEffect(() => { if (tab === 'byTerm' && termOptions.length === 0) fetchTermOptions() }, [tab])
   useEffect(() => { if (selectedReportTerm !== '') loadTermReport(selectedReportTerm) }, [selectedReportTerm])
-
-  const fetchTermInfo = async () => {
-    try {
-      const { data: terms } = await supabase
-        .from('attendance_terms').select('term, closed_at').order('term', { ascending: false })
-      const openRow = (terms || []).find((t: any) => t.closed_at === null)
-      setCurrentTerm(openRow ? openRow.term : null)
-    } catch (error) {
-      console.error('기수차 정보 로딩 실패:', error)
-    } finally {
-      setTermLoaded(true)
-    }
-  }
 
   const handleSetTerm = async () => {
     const n = Number(termInput)
@@ -122,8 +131,9 @@ export default function EvaluationsPage() {
       const { error } = await supabase.from('attendance_terms')
         .upsert({ term: n, started_at: null, closed_at: null }, { onConflict: 'term' })
       if (error) throw error
-      setCurrentTerm(n)
       setTermInput('')
+      // 집계 구간이 바뀌었으므로 출결 수치를 다시 계산한다.
+      await fetchInitialData()
     } catch (error) {
       console.error('기수차 설정 실패:', error)
       alert('기수차 설정 중 오류가 발생했습니다.')
@@ -151,7 +161,9 @@ export default function EvaluationsPage() {
       if (startErr) throw startErr
 
       alert(`${currentTerm}기 출결이 마감되고 ${currentTerm + 1}기가 시작되었습니다.`)
-      setCurrentTerm(currentTerm + 1)
+      // 새 기수로 집계 구간이 바뀌므로 출결 수치를 다시 계산한다.
+      setTermOptions([])
+      await fetchInitialData()
     } catch (error) {
       console.error('기수 마감 실패:', error)
       alert('기수 마감 중 오류가 발생했습니다.')
@@ -180,7 +192,7 @@ export default function EvaluationsPage() {
       const fromDate = row.started_at ? row.started_at.split('T')[0] : null
       const toDate   = row.closed_at ? row.closed_at.split('T')[0] : null
 
-      let attQuery = supabase.from('attendances').select('student_id, status').in('student_id', ids)
+      let attQuery = supabase.from('attendances').select('student_id, status, schedule_id').in('student_id', ids)
       if (fromDate) attQuery = attQuery.gte('date', fromDate)
       if (toDate)   attQuery = attQuery.lte('date', toDate)
 
@@ -188,14 +200,24 @@ export default function EvaluationsPage() {
       if (row.started_at) evalQuery = evalQuery.gte('created_at', row.started_at)
       if (row.closed_at)  evalQuery = evalQuery.lte('created_at', row.closed_at)
 
-      const [{ data: attData }, { data: evalData }] = await Promise.all([attQuery, evalQuery])
+      const subQuery = supabase.from('attendance_substitutions')
+        .select('student_id, schedule_id').in('student_id', ids).eq('status', 'approved')
 
-      const attMap: Record<string, { present: number; late: number; absent: number }> = {}
+      const [{ data: attData }, { data: evalData }, { data: subData }] =
+        await Promise.all([attQuery, evalQuery, subQuery])
+
+      const excused = new Set((subData || []).map((s: any) => excusedKey(s.student_id, s.schedule_id)))
+
+      const attMap: Record<string, { present: number; late: number; absent: number; excused: number }> = {}
       ;(attData || []).forEach((a: any) => {
-        if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0 }
+        if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0, excused: 0 }
         if (a.status === 'PRESENT') attMap[a.student_id].present++
         else if (a.status === 'LATE') attMap[a.student_id].late++
-        else if (a.status === 'ABSENT') attMap[a.student_id].absent++
+        else if (a.status === 'ABSENT') {
+          // 출석 대체가 승인된 결석은 '인정'으로 빼고 결석/모수에서 제외한다.
+          if (a.schedule_id != null && excused.has(excusedKey(a.student_id, a.schedule_id))) attMap[a.student_id].excused++
+          else attMap[a.student_id].absent++
+        }
       })
 
       const evalMap: Record<string, { sum: number; count: number }> = {}
@@ -207,13 +229,15 @@ export default function EvaluationsPage() {
       })
 
       const report = students.map(s => {
-        const c = attMap[s.id] || { present: 0, late: 0, absent: 0 }
-        const total = c.present + c.late + c.absent
+        const c = attMap[s.id] || { present: 0, late: 0, absent: 0, excused: 0 }
+        // 지각 3회 = 결석 1회로 환산해 해당 기수 출석률을 계산한다.
+        const stats = computeAttendanceStats(c)
         const ev = evalMap[s.id]
         return {
           id: s.id, name: s.name, cohort: s.cohort, instrument: s.instrument, className: s.classes?.name ?? null,
-          present: c.present, late: c.late, absent: c.absent,
-          rate: total > 0 ? Math.round(((c.present + c.late) / total) * 100) : 0,
+          present: c.present, late: c.late, absent: c.absent, excused: c.excused,
+          convertedAbsent: stats.convertedAbsent, effectiveAbsent: stats.effectiveAbsent,
+          rate: stats.rate,
           evalCount: ev?.count ?? 0,
           avgScore: ev && ev.count > 0 ? Math.round((ev.sum / ev.count) * 10) / 10 : null,
         }
@@ -257,33 +281,47 @@ export default function EvaluationsPage() {
       if (classIds) q = q.in('class_id', classIds)
       const { data: studentsData } = await q
 
-      // 최근 30일 출석 집계
-      const thirtyAgo = new Date()
-      thirtyAgo.setDate(thirtyAgo.getDate() - 30)
-      const thirtyAgoStr = thirtyAgo.toISOString().split('T')[0]
+      // 집계 구간 = 진행 중인 기수 (미설정이면 전 기간)
+      const openRow = await fetchCurrentTerm(supabase)
+      setCurrentTerm(openRow ? openRow.term : null)
+      setTermWindow(openRow)
+      setTermLoaded(true)
+
       const allIds = (studentsData || []).map((s: any) => s.id)
 
-      const attMap: Record<string, { present: number; late: number; absent: number }> = {}
+      const emptyCounts = () => ({ present: 0, late: 0, absent: 0, excused: 0 })
+      type Counts = ReturnType<typeof emptyCounts>
+      const attMap: Record<string, Counts> = {}
       if (allIds.length > 0) {
-        const { data: attRows } = await supabase
-          .from('attendances').select('student_id, status')
-          .in('student_id', allIds).gte('date', thirtyAgoStr)
-        ;(attRows || []).forEach((a: any) => {
-          if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0 }
-          if (a.status === 'PRESENT') attMap[a.student_id].present++
-          else if (a.status === 'LATE') attMap[a.student_id].late++
-          else if (a.status === 'ABSENT') attMap[a.student_id].absent++
+        const [attRows, subRows] = await Promise.all([
+          fetchAllPages(from => scopeToTerm(supabase.from('attendances')
+            .select('student_id, status, schedule_id, date')
+            .in('student_id', allIds), openRow).order('id').range(from, from + PAGE_SIZE - 1)),
+          fetchAllPages(from => supabase.from('attendance_substitutions')
+            .select('student_id, schedule_id')
+            .in('student_id', allIds).eq('status', 'approved').order('id').range(from, from + PAGE_SIZE - 1)),
+        ])
+        const excused = new Set(subRows.map((s: any) => excusedKey(s.student_id, s.schedule_id)))
+        attRows.forEach((a: any) => {
+          if (!attMap[a.student_id]) attMap[a.student_id] = emptyCounts()
+          const c = attMap[a.student_id]
+          if (a.status === 'PRESENT') c.present++
+          else if (a.status === 'LATE') c.late++
+          else if (a.status === 'ABSENT') {
+            // 출석 대체가 승인된 결석은 '인정'으로 빼고 결석/모수에서 제외한다.
+            if (a.schedule_id != null && excused.has(excusedKey(a.student_id, a.schedule_id))) c.excused++
+            else c.absent++
+          }
         })
       }
 
       const list: Student[] = (studentsData || []).map((u: any) => {
-        const att = attMap[u.id] || { present: 0, late: 0, absent: 0 }
-        const total = att.present + att.late + att.absent
+        // 지각 3회 = 결석 1회로 환산해 해당 기수 출석률을 계산한다.
+        const stats = computeAttendanceStats(attMap[u.id] || emptyCounts())
         return {
           id: u.id, name: u.name, cohort: u.cohort, instrument: u.instrument,
           classes: u.classes,
-          presentCount: att.present, lateCount: att.late, absentCount: att.absent,
-          attendanceRate: total > 0 ? Math.round(((att.present + att.late) / total) * 100) : 0,
+          stats,
         }
       })
       setStudents(list)
@@ -298,9 +336,10 @@ export default function EvaluationsPage() {
     setDetailLoading(true)
     try {
       const [{ data: attData }, { data: evalData }, { data: subData }] = await Promise.all([
-        supabase.from('attendances')
-          .select('id, date, status, schedule_id, teacher_id').eq('student_id', studentId)
-          .order('date', { ascending: false }).limit(20),
+        // 기수 구간 전체를 받아 누적 집계를 내고, 칩 목록은 최근 20회만 렌더한다.
+        scopeToTerm(supabase.from('attendances')
+          .select('id, date, status, schedule_id, teacher_id').eq('student_id', studentId), termWindow)
+          .order('date', { ascending: false }),
         supabase.from('evaluations')
           .select('id, score, comment, created_at, writer_id, writer:writer_id(name)')
           .eq('student_id', studentId).order('created_at', { ascending: false }),
@@ -503,7 +542,7 @@ export default function EvaluationsPage() {
         student_id: s.id,
         writer_id: currentUser.id,
         schedule_id: selectedScheduleId,
-        score: sessionData[s.id]?.score || 100,
+        score: sessionData[s.id]?.score ?? 100,
         comment: (sessionData[s.id]?.comment || '').trim() || '코멘트 없음',
       }))
 
@@ -576,7 +615,7 @@ export default function EvaluationsPage() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>{canWrite ? '출결 / 평가 관리' : '출결 / 평가 현황'}</h1>
-          <p className={styles.subtitle}>학생 {students.length}명 · 최근 30일 출석 기준</p>
+          <p className={styles.subtitle}>학생 {students.length}명 · {termLabel} 출석 기준</p>
         </div>
         {userRole === 'admin' && (
           <button onClick={handleDownloadCSV} className={styles.csvBtn}>
@@ -694,7 +733,7 @@ export default function EvaluationsPage() {
                               type="button"
                               className={styles.statusBtn}
                               style={active ? { background: cfg.bg, color: cfg.color, borderColor: cfg.color } : undefined}
-                              onClick={() => updateSession({ status: st })}
+                              onClick={() => updateSession({ status: st, ...(st === 'ABSENT' ? { score: 0 } : {}) })}
                             >
                               {cfg.label}
                             </button>
@@ -764,7 +803,8 @@ export default function EvaluationsPage() {
                   <th>반</th>
                   <th>출석</th>
                   <th>지각</th>
-                  <th>결석</th>
+                  <th>인정</th>
+                  <th>결석<span className={styles.sectionSub} style={{ marginLeft: 4 }}>(환산 포함)</span></th>
                   <th>출석률</th>
                   <th>평가 건수</th>
                   <th>평균 점수</th>
@@ -782,7 +822,19 @@ export default function EvaluationsPage() {
                       <td>{r.className || '-'}</td>
                       <td>{r.present}</td>
                       <td>{r.late}</td>
-                      <td>{r.absent}</td>
+                      <td style={r.excused > 0 ? { color: '#2563eb', fontWeight: 700 } : undefined}>
+                        {r.excused > 0 ? `-${r.excused}` : '-'}
+                      </td>
+                      <td title={absenceBreakdown(r) ?? undefined}>
+                        {r.effectiveAbsent}
+                        {(r.convertedAbsent > 0 || r.excused > 0) && (
+                          <span className={styles.sectionSub} style={{ marginLeft: 4 }}>
+                            (기록 {r.absent + r.excused}
+                            {r.excused > 0 && ` − 인정 ${r.excused}`}
+                            {r.convertedAbsent > 0 && ` + 지각환산 ${r.convertedAbsent}`})
+                          </span>
+                        )}
+                      </td>
                       <td style={{ color: rateColor, fontWeight: 700 }}>{r.rate}%</td>
                       <td>{r.evalCount}건</td>
                       <td>{r.avgScore !== null ? `${r.avgScore}점` : '-'}</td>
@@ -797,11 +849,11 @@ export default function EvaluationsPage() {
       <div className={styles.layout}>
         {/* ── 왼쪽: 학생 목록 ── */}
         <div className={styles.studentList}>
-          <div className={styles.listHeader}>학생 목록 ({students.length}명)</div>
+          <div className={styles.listHeader}>학생 목록 ({students.length}명) · {termLabel} 기준</div>
           {students.length === 0 ? (
             <div className={styles.empty} style={{ padding: '20px' }}>담당 학생이 없습니다.</div>
           ) : students.map(s => {
-            const rateColor = s.attendanceRate >= 80 ? '#16a34a' : s.attendanceRate >= 60 ? '#d97706' : '#dc2626'
+            const rateColor = s.stats.rate >= 80 ? '#16a34a' : s.stats.rate >= 60 ? '#d97706' : '#dc2626'
             return (
               <div
                 key={s.id}
@@ -815,9 +867,18 @@ export default function EvaluationsPage() {
                     {s.cohort && <span className={styles.tag}>{s.cohort}기</span>}
                   </div>
                   <div className={styles.className}>{s.classes?.name || '소속 반 없음'}</div>
+                  <div
+                    className={styles.cumulativeInline}
+                    title={`${termLabel} 누적 · ${absenceBreakdown(s.stats) ?? `결석 ${s.stats.effectiveAbsent}회`}`}
+                  >
+                    <span style={{ color: '#16a34a' }}>출석 {s.stats.present}</span>
+                    <span style={{ color: '#d97706' }}>지각 {s.stats.late}</span>
+                    {s.stats.excused > 0 && <span style={{ color: '#2563eb' }}>인정 -{s.stats.excused}</span>}
+                    <span style={{ color: '#dc2626' }}>결석 {s.stats.effectiveAbsent}</span>
+                  </div>
                 </div>
                 <div className={styles.rateWrap}>
-                  <span className={styles.rateNum} style={{ color: rateColor }}>{s.attendanceRate}%</span>
+                  <span className={styles.rateNum} style={{ color: rateColor }}>{s.stats.rate}%</span>
                   <span className={styles.rateLabel}>출석률</span>
                 </div>
               </div>
@@ -846,30 +907,50 @@ export default function EvaluationsPage() {
                     {selectedStudent.classes?.name && <span className={styles.profileTag}>{selectedStudent.classes.name}</span>}
                   </div>
                 </div>
+                <div className={styles.profileStatsWrap}>
+                <div className={styles.profileStatsCaption}>{termLabel} 누적</div>
                 <div className={styles.profileStats}>
                   <div className={styles.profileStat}>
-                    <span className={styles.profileStatNum} style={{ color: '#16a34a' }}>{selectedStudent.presentCount}</span>
+                    <span className={styles.profileStatNum} style={{ color: '#16a34a' }}>{detailStats.present}</span>
                     <span className={styles.profileStatLabel}>출석</span>
                   </div>
                   <div className={styles.profileStat}>
-                    <span className={styles.profileStatNum} style={{ color: '#d97706' }}>{selectedStudent.lateCount}</span>
+                    <span className={styles.profileStatNum} style={{ color: '#d97706' }}>{detailStats.late}</span>
                     <span className={styles.profileStatLabel}>지각</span>
                   </div>
-                  <div className={styles.profileStat}>
-                    <span className={styles.profileStatNum} style={{ color: '#dc2626' }}>{selectedStudent.absentCount}</span>
-                    <span className={styles.profileStatLabel}>결석</span>
+                  {detailStats.excused > 0 && (
+                    <div className={styles.profileStat} title="출석 대체가 승인되어 결석에서 차감된 횟수">
+                      <span className={styles.profileStatNum} style={{ color: '#2563eb' }}>-{detailStats.excused}</span>
+                      <span className={styles.profileStatLabel}>인정</span>
+                    </div>
+                  )}
+                  <div className={styles.profileStat} title={absenceBreakdown(detailStats) ?? undefined}>
+                    <span className={styles.profileStatNum} style={{ color: '#dc2626' }}>
+                      {detailStats.effectiveAbsent}
+                      {detailStats.convertedAbsent > 0 && (
+                        <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.85 }}> (+{detailStats.convertedAbsent})</span>
+                      )}
+                    </span>
+                    <span className={styles.profileStatLabel}>결석{detailStats.convertedAbsent > 0 ? ' (환산 포함)' : ''}</span>
                   </div>
+                  <div className={styles.profileStat}>
+                    <span className={styles.profileStatNum}>{detailStats.rate}%</span>
+                    <span className={styles.profileStatLabel}>출석률</span>
+                  </div>
+                </div>
                 </div>
               </div>
 
               {/* ── 출결 현황 섹션 ── */}
               <div className={styles.card}>
-                <h2 className={styles.sectionTitle}>📅 출결 현황 <span className={styles.sectionSub}>최근 20회</span></h2>
+                <h2 className={styles.sectionTitle}>
+                  📅 출결 현황 <span className={styles.sectionSub}>{termLabel} {attendanceLogs.length}회 · 최근 20회 표시</span>
+                </h2>
                 {attendanceLogs.length === 0 ? (
                   <div className={styles.emptySmall}>출석 기록이 없습니다.</div>
                 ) : (
                   <div className={styles.attendanceGrid}>
-                    {attendanceLogs.map(a => {
+                    {attendanceLogs.slice(0, 20).map(a => {
                       const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
                       const label = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' })
                       const excused = a.status === 'ABSENT' && a.schedule_id != null && excusedScheduleIds.has(a.schedule_id)

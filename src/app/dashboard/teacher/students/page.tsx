@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  computeAttendanceStats, excusedKey, absenceBreakdown, fetchCurrentTerm, scopeToTerm,
+  fetchAllPages, PAGE_SIZE, type TermWindow,
+} from '@/lib/attendance'
 import styles from './students.module.css'
 
 const STATUS_CONFIG = {
@@ -19,12 +23,16 @@ interface Student {
   presentCount: number
   lateCount: number
   absentCount: number
+  excusedCount: number
+  convertedAbsent: number
+  effectiveAbsent: number
 }
 
 interface AttendanceRecord {
   id: string
   date: string
   status: 'PRESENT' | 'LATE' | 'ABSENT'
+  schedule_id: string | null
 }
 
 interface EvalRecord {
@@ -43,6 +51,10 @@ export default function TeacherStudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [selected, setSelected] = useState<Student | null>(null)
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceRecord[]>([])
+  const [excusedScheduleIds, setExcusedScheduleIds] = useState<Set<string>>(new Set())
+  // 출결 집계 구간 = 진행 중인 기수. null 이면 기수 미설정이라 전 기간으로 집계한다.
+  const [termWindow, setTermWindow] = useState<TermWindow>(null)
+  const [currentTerm, setCurrentTerm] = useState<number | null>(null)
   const [evalLogs, setEvalLogs] = useState<EvalRecord[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
 
@@ -87,29 +99,44 @@ export default function TeacherStudentsPage() {
         .eq('is_active', true)
         .order('name')
 
-      // 최근 30일 출석 (모든 담당 학생)
-      const thirtyAgo = new Date()
-      thirtyAgo.setDate(thirtyAgo.getDate() - 30)
-      const thirtyAgoStr = thirtyAgo.toISOString().split('T')[0]
+      // 집계 구간 = 진행 중인 기수 (미설정이면 전 기간)
+      const term = await fetchCurrentTerm(supabase)
+      setTermWindow(term)
+      setCurrentTerm(term ? term.term : null)
 
-      const { data: attRows } = await supabase
-        .from('attendances')
-        .select('student_id, status')
-        .in('student_id', studentIds)
-        .gte('date', thirtyAgoStr)
+      const [attRows, subRows] = await Promise.all([
+        fetchAllPages(from => scopeToTerm(supabase
+          .from('attendances')
+          .select('student_id, status, schedule_id')
+          .in('student_id', studentIds), term)
+          .order('id').range(from, from + PAGE_SIZE - 1)),
+        fetchAllPages(from => supabase
+          .from('attendance_substitutions')
+          .select('student_id, schedule_id')
+          .in('student_id', studentIds)
+          .eq('status', 'approved')
+          .order('id').range(from, from + PAGE_SIZE - 1)),
+      ])
+
+      const excused = new Set(subRows.map((s: any) => excusedKey(s.student_id, s.schedule_id)))
 
       // 학생별 출석 집계
-      const attMap: Record<string, { present: number; late: number; absent: number }> = {}
-      ;(attRows || []).forEach((a: any) => {
-        if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0 }
+      const attMap: Record<string, { present: number; late: number; absent: number; excused: number }> = {}
+      attRows.forEach((a: any) => {
+        if (!attMap[a.student_id]) attMap[a.student_id] = { present: 0, late: 0, absent: 0, excused: 0 }
         if (a.status === 'PRESENT') attMap[a.student_id].present++
         else if (a.status === 'LATE')    attMap[a.student_id].late++
-        else if (a.status === 'ABSENT')  attMap[a.student_id].absent++
+        else if (a.status === 'ABSENT') {
+          // 출석 대체가 승인된 결석은 '인정'으로 빼고 결석/모수에서 제외한다.
+          if (a.schedule_id != null && excused.has(excusedKey(a.student_id, a.schedule_id))) attMap[a.student_id].excused++
+          else attMap[a.student_id].absent++
+        }
       })
 
       const list: Student[] = (userRows || []).map((u: any) => {
-        const att = attMap[u.id] || { present: 0, late: 0, absent: 0 }
-        const total = att.present + att.late + att.absent
+        const att = attMap[u.id] || { present: 0, late: 0, absent: 0, excused: 0 }
+        // 지각 3회 = 결석 1회로 환산해 해당 기수 출석률을 계산한다.
+        const stats = computeAttendanceStats(att)
         return {
           id: u.id,
           name: u.name,
@@ -118,7 +145,10 @@ export default function TeacherStudentsPage() {
           presentCount: att.present,
           lateCount: att.late,
           absentCount: att.absent,
-          attendanceRate: total > 0 ? Math.round(((att.present + att.late) / total) * 100) : 0,
+          excusedCount: att.excused,
+          convertedAbsent: stats.convertedAbsent,
+          effectiveAbsent: stats.effectiveAbsent,
+          attendanceRate: stats.rate,
         }
       })
 
@@ -133,11 +163,11 @@ export default function TeacherStudentsPage() {
   const loadDetail = async (studentId: string) => {
     setDetailLoading(true)
     try {
-      const [{ data: attData }, { data: evalData }] = await Promise.all([
-        supabase
+      const [{ data: attData }, { data: evalData }, { data: subData }] = await Promise.all([
+        scopeToTerm(supabase
           .from('attendances')
-          .select('id, date, status')
-          .eq('student_id', studentId)
+          .select('id, date, status, schedule_id')
+          .eq('student_id', studentId), termWindow)
           .order('date', { ascending: false })
           .limit(15),
         supabase
@@ -146,8 +176,14 @@ export default function TeacherStudentsPage() {
           .eq('student_id', studentId)
           .order('created_at', { ascending: false })
           .limit(5),
+        supabase
+          .from('attendance_substitutions')
+          .select('schedule_id')
+          .eq('student_id', studentId)
+          .eq('status', 'approved'),
       ])
       setAttendanceLogs((attData as any) || [])
+      setExcusedScheduleIds(new Set((subData || []).map((s: any) => s.schedule_id)))
       setEvalLogs((evalData as any) || [])
     } finally {
       setDetailLoading(false)
@@ -179,7 +215,9 @@ export default function TeacherStudentsPage() {
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>👥 내 학생 관리</h1>
-      <p className={styles.subtitle}>담당 학생 {students.length}명 · 최근 30일 출석 기준</p>
+      <p className={styles.subtitle}>
+        담당 학생 {students.length}명 · {currentTerm !== null ? `${currentTerm}기` : '전 기간'} 출석 기준
+      </p>
 
       {students.length === 0 ? (
         <div className={styles.empty}>담당 학생이 배정되지 않았습니다.</div>
@@ -245,9 +283,23 @@ export default function TeacherStudentsPage() {
                       <span className={styles.profileStatNum} style={{ color: '#d97706' }}>{selected.lateCount}</span>
                       <span className={styles.profileStatLabel}>지각</span>
                     </div>
-                    <div className={styles.profileStat}>
-                      <span className={styles.profileStatNum} style={{ color: '#dc2626' }}>{selected.absentCount}</span>
-                      <span className={styles.profileStatLabel}>결석</span>
+                    {selected.excusedCount > 0 && (
+                      <div className={styles.profileStat} title="출석 대체가 승인되어 결석에서 차감된 횟수">
+                        <span className={styles.profileStatNum} style={{ color: '#2563eb' }}>-{selected.excusedCount}</span>
+                        <span className={styles.profileStatLabel}>인정</span>
+                      </div>
+                    )}
+                    <div className={styles.profileStat} title={absenceBreakdown({
+                      absent: selected.absentCount, excused: selected.excusedCount,
+                      convertedAbsent: selected.convertedAbsent, effectiveAbsent: selected.effectiveAbsent,
+                    }) ?? undefined}>
+                      <span className={styles.profileStatNum} style={{ color: '#dc2626' }}>
+                        {selected.effectiveAbsent}
+                        {selected.convertedAbsent > 0 && (
+                          <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.85 }}> (+{selected.convertedAbsent})</span>
+                        )}
+                      </span>
+                      <span className={styles.profileStatLabel}>결석{selected.convertedAbsent > 0 ? ' (환산 포함)' : ''}</span>
                     </div>
                   </div>
                 </div>
@@ -263,6 +315,7 @@ export default function TeacherStudentsPage() {
                         const cfg = STATUS_CONFIG[a.status] || STATUS_CONFIG.PRESENT
                         const d = new Date(a.date + 'T00:00:00')
                         const label = d.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' })
+                        const excused = a.status === 'ABSENT' && a.schedule_id != null && excusedScheduleIds.has(a.schedule_id)
                         return (
                           <div key={a.id} className={styles.attChip}>
                             <span className={styles.attDate}>{label}</span>
@@ -272,6 +325,7 @@ export default function TeacherStudentsPage() {
                             >
                               {cfg.label}
                             </span>
+                            {excused && <span className={styles.excusedBadge}>인정</span>}
                           </div>
                         )
                       })}

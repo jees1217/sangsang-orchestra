@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchCurrentTerm, scopeToTerm } from '@/lib/attendance'
 import { redirect } from 'next/navigation'
 import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './admin.module.css'
@@ -51,9 +52,9 @@ export default async function AdminDashboard() {
     month: 'long', day: 'numeric', weekday: 'long',
   })
 
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+  // 출결 집계 구간 = 진행 중인 기수 (미설정이면 전 기간)
+  const term = await fetchCurrentTerm(supabase)
+  const termLabel = term ? `${term.term}기` : '전 기간'
 
   const [
     { data: rawStudents },
@@ -67,10 +68,9 @@ export default async function AdminDashboard() {
     supabase.from('users').select('id').eq('role', 'student'),
     supabase.from('users').select('id').eq('role', 'teacher'),
 
-    supabase
+    scopeToTerm(supabase
       .from('attendances')
-      .select('status, date, student:student_id(name)')
-      .gte('date', thirtyDaysAgoStr)
+      .select('status, date, student:student_id(name)'), term)
       .order('date', { ascending: false }),
 
     supabase
@@ -152,7 +152,7 @@ export default async function AdminDashboard() {
           <h2 className={styles.cardTitle}>
             <span>📊</span>
             전체 출결 현황
-            <span className={styles.badgeSub}>최근 30일</span>
+            <span className={styles.badgeSub}>{termLabel}</span>
           </h2>
 
           <div className={styles.statRow}>

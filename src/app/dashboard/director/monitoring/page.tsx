@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import {
+  computeAttendanceStats, excusedKey, fetchCurrentTerm, scopeToTerm, fetchAllPages, PAGE_SIZE,
+} from '@/lib/attendance'
 import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './monitoring.module.css'
 
@@ -60,6 +63,7 @@ export default function DirectorMonitoringPage() {
   const [teacherStats, setTeacherStats] = useState<TeacherStat[]>([])
   const [atRiskStudents, setAtRiskStudents] = useState<AtRiskStudent[]>([])
   const [schedules, setSchedules] = useState<ScheduleItem[]>([])
+  const [termLabel, setTermLabel] = useState('전 기간')
 
   const todayStr = new Date().toISOString().split('T')[0]
   const todayDisplay = new Date().toLocaleDateString('ko-KR', {
@@ -72,9 +76,9 @@ export default function DirectorMonitoringPage() {
 
   const init = async () => {
     try {
-      const thirtyAgo = new Date()
-      thirtyAgo.setDate(thirtyAgo.getDate() - 30)
-      const thirtyAgoStr = thirtyAgo.toISOString().split('T')[0]
+      // 출결·평가 집계 구간 = 진행 중인 기수 (미설정이면 전 기간)
+      const term = await fetchCurrentTerm(supabase)
+      setTermLabel(term ? `${term.term}기` : '전 기간')
 
       const thirtyForward = new Date()
       thirtyForward.setDate(thirtyForward.getDate() + 30)
@@ -88,7 +92,8 @@ export default function DirectorMonitoringPage() {
         { data: todayAtt },
         { data: allStudents },
         { data: allTeachers },
-        { data: recentAtt },
+        recentAtt,
+        approvedSubs,
         { data: recentEvals },
         { data: upcomingSchedules },
         { data: classRows },
@@ -105,17 +110,23 @@ export default function DirectorMonitoringPage() {
         // 전체 교사
         supabase.from('users').select('id, name').eq('role', 'teacher').eq('is_active', true),
 
-        // 최근 30일 출석 (학생별 결석 집계용)
-        supabase
+        // 기수 구간 출석 (학생별 결석 집계용)
+        fetchAllPages(from => scopeToTerm(supabase
           .from('attendances')
-          .select('student_id, status')
-          .gte('date', thirtyAgoStr),
+          .select('student_id, status, schedule_id'), term)
+          .order('id').range(from, from + PAGE_SIZE - 1)),
 
-        // 최근 30일 평가 (학생별 평균 점수 + 교사별 마지막 평가일)
-        supabase
+        // 승인된 출석 대체 (인정 결석 차감용)
+        fetchAllPages(from => supabase
+          .from('attendance_substitutions')
+          .select('student_id, schedule_id')
+          .eq('status', 'approved')
+          .order('id').range(from, from + PAGE_SIZE - 1)),
+
+        // 기수 구간 평가 (학생별 평균 점수 + 교사별 마지막 평가일)
+        scopeToTerm(supabase
           .from('evaluations')
-          .select('student_id, writer_id, score, created_at')
-          .gte('created_at', thirtyAgo.toISOString()),
+          .select('student_id, writer_id, score, created_at'), term, 'created_at', 'timestamp'),
 
         // 다가오는 30일 일정
         supabase
@@ -191,15 +202,25 @@ export default function DirectorMonitoringPage() {
       setTeacherStats(tStats)
 
       // ── 요주의 학생 ──
-      // 30일 결석 횟수
-      const absenceMap: Record<string, number> = {}
-      ;(recentAtt || []).forEach((a: any) => {
-        if (a.status === 'ABSENT') {
-          absenceMap[a.student_id] = (absenceMap[a.student_id] || 0) + 1
+      // 기수 결석 횟수 (인정 차감 · 지각 3회당 결석 1회 환산 반영)
+      const excused = new Set(approvedSubs.map((s: any) => excusedKey(s.student_id, s.schedule_id)))
+      const countsMap: Record<string, { present: number; late: number; absent: number; excused: number }> = {}
+      recentAtt.forEach((a: any) => {
+        if (!countsMap[a.student_id]) countsMap[a.student_id] = { present: 0, late: 0, absent: 0, excused: 0 }
+        const c = countsMap[a.student_id]
+        if (a.status === 'PRESENT') c.present++
+        else if (a.status === 'LATE') c.late++
+        else if (a.status === 'ABSENT') {
+          if (a.schedule_id != null && excused.has(excusedKey(a.student_id, a.schedule_id))) c.excused++
+          else c.absent++
         }
       })
+      const absenceMap: Record<string, number> = {}
+      Object.entries(countsMap).forEach(([sid, c]) => {
+        absenceMap[sid] = computeAttendanceStats(c).effectiveAbsent
+      })
 
-      // 30일 평가 평균 점수
+      // 기수 평가 평균 점수
       const scoreMap: Record<string, { sum: number; cnt: number }> = {}
       ;(recentEvals || []).forEach((ev: any) => {
         if (!ev.student_id || ev.score == null) return
@@ -357,7 +378,7 @@ export default function DirectorMonitoringPage() {
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>
             <span>⚠️</span>요주의 학생
-            <span className={styles.badgeSub}>최근 30일</span>
+            <span className={styles.badgeSub}>{termLabel}</span>
           </h2>
 
           {atRiskStudents.length === 0 ? (
@@ -378,7 +399,12 @@ export default function DirectorMonitoringPage() {
                   </div>
                   <div className={styles.riskTags}>
                     {s.absenceCount >= 2 && (
-                      <span className={styles.riskTagAbsence}>결석 {s.absenceCount}회</span>
+                      <span
+                        className={styles.riskTagAbsence}
+                        title="지각 3회당 결석 1회 환산 · 출석 대체 승인분(인정) 차감 후 횟수"
+                      >
+                        결석 {s.absenceCount}회
+                      </span>
                     )}
                     {s.avgScore !== null && s.avgScore <= 50 && (
                       <span className={styles.riskTagScore}>평균 {s.avgScore}점</span>

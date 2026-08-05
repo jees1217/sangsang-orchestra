@@ -136,6 +136,7 @@
 }
 .attDate { color: #475569; }
 .attStatus { padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px; }
+.excusedBadge { font-size: 10px; font-weight: 700; color: #2b6cb0; background: #ebf8ff; border: 1px solid #90cdf4; padding: 1px 6px; border-radius: 999px; }
 
 /* 평가 작성 폼 */
 .evalForm { display: flex; flex-direction: column; gap: 10px; }

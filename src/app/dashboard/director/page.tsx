@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchCurrentTerm, scopeToTerm } from '@/lib/attendance'
 import { redirect } from 'next/navigation'
 import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './director.module.css'
@@ -58,9 +59,9 @@ export default async function DirectorDashboard() {
     month: 'long', day: 'numeric', weekday: 'long',
   })
 
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+  // 출결 집계 구간 = 진행 중인 기수 (미설정이면 전 기간)
+  const term = await fetchCurrentTerm(supabase)
+  const termLabel = term ? `${term.term}기` : '전 기간'
 
   const [
     { data: rawStudents },
@@ -75,11 +76,10 @@ export default async function DirectorDashboard() {
     // 전체 선생님 수
     supabase.from('users').select('id').eq('role', 'teacher'),
 
-    // 최근 30일 출석 전체 (stats + 결석자 리스트 모두 처리)
-    supabase
+    // 기수 구간 출석 전체 (stats + 결석자 리스트 모두 처리)
+    scopeToTerm(supabase
       .from('attendances')
-      .select('status, date, student:student_id(name)')
-      .gte('date', thirtyDaysAgoStr)
+      .select('status, date, student:student_id(name)'), term)
       .order('date', { ascending: false }),
 
     // 최신 강의평가
@@ -140,7 +140,7 @@ export default async function DirectorDashboard() {
           <h2 className={styles.cardTitle}>
             <span>📊</span>
             전체 출결 현황
-            <span className={styles.badgeSub}>최근 30일</span>
+            <span className={styles.badgeSub}>{termLabel}</span>
           </h2>
 
           {/* 숫자 요약 */}
