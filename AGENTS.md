@@ -30,3 +30,12 @@ Raw `attendances` rows are **never mutated** by these rules — the `attendance_
 # 평가 점수 (evaluations.score)
 
 `0` is a valid score, so **never use `||` to default it** — `score || 100` silently rewrites a deliberate 0 into 100. Use `??`. Marking a student 결석 in the 수업별 출결·평가 tab auto-sets their score to 0 (still editable afterward).
+
+# 문의게시판 (inquiries · inquiry_replies)
+
+Permissions differ from every other screen, so don't copy the 공지 pattern. Migrations `00024_inquiries.sql` / `00025_inquiry_replies.sql`.
+
+- 열람은 전원, 쓰기는 옵저버(`director`) 제외 전원. **수정은 항상 본인 글만 — 관리자도 남의 글 제목·내용은 못 고친다.** 삭제·비밀글 지정은 본인 글 + 관리자는 전체.
+- "관리자는 남의 글의 `is_secret` 만 바꾼다"는 컬럼 단위 제약이라 RLS로 표현할 수 없다. 관리자에게 UPDATE 자체는 열어두고, `guard_inquiry_update` 트리거가 남의 글이면 title/content 변경 시 예외를 던진다. 새 컬럼을 추가하면 이 트리거에도 반영해야 한다.
+- 목록은 **반드시 `inquiries_board` 뷰**에서 읽는다. 테이블 RLS는 비밀글 행 자체를 숨기므로(=목록에서 통째로 사라짐), 뷰가 RLS를 우회(`security_invoker = false`)해 제목·작성자만 남기고 본문을 NULL로 지운 뒤 `can_read_content` 플래그를 함께 내려준다. 쓰기는 항상 테이블로 나간다.
+- 답변(`inquiry_replies`)은 관리자만 작성. 답변 SELECT 정책이 원글 가시성을 그대로 따라가므로 비밀글의 답변은 작성자·관리자에게만 내려간다 — 화면에서 따로 거를 필요 없다.

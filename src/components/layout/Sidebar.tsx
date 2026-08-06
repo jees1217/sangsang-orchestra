@@ -16,12 +16,14 @@ const MENUS = {
     { label: '공지사항', path: '/dashboard/notices', icon: '📢' },
     { label: '나의 과제', path: '/dashboard/student/assignments', icon: '📝' },
     { label: '출석 대체 신청', path: '/dashboard/student/substitutions', icon: '🙋' },
+    { label: '문의게시판', path: '/dashboard/inquiries', icon: '💬' },
   ],
   teacher: [
     { label: '수업 관리', path: '/dashboard/teacher/management', icon: '📚' },
     { label: '출결/평가 관리', path: '/dashboard/evaluations', icon: '✔️' },
     { label: '출석 대체 현황', path: '/dashboard/substitutions', icon: '🙋' },
     { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📋' },
+    { label: '문의게시판', path: '/dashboard/inquiries', icon: '💬' },
   ],
   director: [
     { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },
@@ -31,6 +33,7 @@ const MENUS = {
     { label: '공지사항', path: '/dashboard/notices', icon: '📢' },
     { label: '악보', path: '/dashboard/scores', icon: '🎵' },
     { label: '통합 일정', path: '/dashboard/schedules', icon: '📅' },
+    { label: '문의게시판', path: '/dashboard/inquiries', icon: '💬' },
   ],
   admin: [
     { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },
@@ -40,6 +43,7 @@ const MENUS = {
     { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📢' },
     { label: '악보 관리', path: '/dashboard/scores', icon: '🎵' },
     { label: '통합 일정 관리', path: '/dashboard/schedules', icon: '📅' },
+    { label: '문의게시판', path: '/dashboard/inquiries', icon: '💬' },
   ]
 }
 
