@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CLASS_TEACHER_ROLES } from '@/lib/roles'
 import styles from './classes.module.css'
 
 interface ClassData {
@@ -56,7 +57,7 @@ export default function ClassesPage() {
 
       const [{ data: classData, error }, { data: teacherData }] = await Promise.all([
         query,
-        supabase.from('users').select('id, name').in('role', ['teacher', 'director']).order('name'),
+        supabase.from('users').select('id, name').in('role', [...CLASS_TEACHER_ROLES]).order('name'),
       ])
 
       if (error) throw error

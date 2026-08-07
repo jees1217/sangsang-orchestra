@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { isMemberListTeacherRole } from '@/lib/roles'
 import styles from './page.module.css'
 
 type User = {
@@ -313,7 +314,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
     setTimeout(() => setFeedback(null), 3000)
   }
 
-  const teachers = useMemo(() => users.filter(u => u.role === 'teacher'), [users])
+  // 반 담당 선생님 후보 — 관리자 계정도 수업을 맡을 수 있어서 함께 노출한다 (옵저버는 제외)
+  const teachers = useMemo(() => users.filter(u => isMemberListTeacherRole(u.role)), [users])
 
   const getTeacherNames = (teacherIds: string[] | null) => {
     if (!teacherIds || teacherIds.length === 0) return '미배정'
@@ -329,8 +331,8 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
       const matchInstrument = filterInstrument === 'all' || (user.instrument || 'none') === filterInstrument
       let matchClass = true
       if (filterClass !== 'all') {
-        if (user.role === 'student')      matchClass = user.class_id === filterClass
-        else if (user.role === 'teacher') matchClass = (teacherClassMap[user.id] || []).some(tc => tc.classId === filterClass)
+        if (user.role === 'student')                 matchClass = user.class_id === filterClass
+        else if (isMemberListTeacherRole(user.role))  matchClass = (teacherClassMap[user.id] || []).some(tc => tc.classId === filterClass)
       }
       const matchActive =
         filterActive === 'all' ? true :
@@ -690,7 +692,7 @@ export default function MemberListClient({ initialUsers, viewerRole }: MemberLis
         </select>
       )
     }
-    if (u.role === 'teacher') {
+    if (isMemberListTeacherRole(u.role)) {
       const assignments = teacherClassMap[u.id] || []
       return (
         <div className={styles.classCell}>

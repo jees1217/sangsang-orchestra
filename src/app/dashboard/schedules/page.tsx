@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { CLASS_TEACHER_ROLES } from '@/lib/roles'
 import styles from './schedules-manage.module.css'
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -66,7 +67,7 @@ export default function ScheduleManagementPage() {
       setUserRole(me?.role || '')
 
       const [{ data: tData }, { data: cData }, { data: sData }, { data: availData }] = await Promise.all([
-        supabase.from('users').select('id, name').in('role', ['teacher', 'director']),
+        supabase.from('users').select('id, name').in('role', [...CLASS_TEACHER_ROLES]).order('name'),
         supabase.from('classes').select('id, name, cohort, teacher_ids'),
         supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name'),
         supabase.from('teacher_availabilities')
