@@ -196,7 +196,12 @@ export default function EvaluationsPage() {
     try {
       const { data } = await supabase
         .from('attendance_terms').select('term, started_at, closed_at').order('term', { ascending: false })
-      setTermOptions((data as any) || [])
+      const rows = (data as any) || []
+      setTermOptions(rows)
+      // 아직 아무 기수도 선택 안 했으면 가장 마지막(최신) 기수를 기본으로 조회한다.
+      if (rows.length > 0) {
+        setSelectedReportTerm(prev => prev === '' ? rows[0].term : prev)
+      }
     } catch (error) {
       console.error('기수차 목록 로딩 실패:', error)
     }
@@ -468,7 +473,13 @@ export default function EvaluationsPage() {
       }
 
       const { data } = await query
-      setSessionSchedules(data || [])
+      const rows = data || []
+      setSessionSchedules(rows)
+      // 아직 아무 수업도 선택 안 했으면 가장 최신 수업을 기본으로 조회한다.
+      // (쿼리가 schedule_date/start_time 내림차순이라 rows[0]이 최신)
+      if (rows.length > 0) {
+        setSelectedScheduleId(prev => prev || rows[0].id)
+      }
 
       // 대상 학생 판별용 전체 학생 목록 (한 번만 로드)
       if (allStudentsForSession.length === 0) {
