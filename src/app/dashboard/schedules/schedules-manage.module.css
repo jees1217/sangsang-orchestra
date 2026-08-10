@@ -362,6 +362,54 @@
 .scheduleCard:last-child { margin-bottom: 0; }
 .scheduleCard:hover { border-color: var(--primary-color, #00A99D); box-shadow: var(--shadow-md, 0 4px 16px rgba(0,169,157,0.10)); }
 
+/* 지난 일정은 톤을 낮춰 예정 일정과 시각적으로 구분 */
+.scheduleCardPast { opacity: 0.6; }
+.scheduleCardPast:hover { opacity: 0.85; }
+
+/* 목록 상단 컨트롤 행 — 정렬 select + 지난 일정 체크박스 */
+.listControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* 지난 일정 포함 체크박스 (학생 수업일정 화면과 동일한 스타일) */
+.pastToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 8px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+.pastToggle input { cursor: pointer; }
+
+/* 예정 → 지난 일정 경계 구분선 */
+.pastDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 12px;
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 800;
+}
+.pastDivider::before,
+.pastDivider::after {
+  content: '';
+  flex: 1;
+  height: 1.5px;
+  background: #CBD5E1;
+}
+
 .scHeader { display: flex; justify-content: space-between; align-items: flex-start; }
 .scHeaderLeft { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 

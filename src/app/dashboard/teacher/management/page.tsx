@@ -35,13 +35,10 @@ export default function TeacherManagementPage() {
   const supabase = createClient()
 
   const [teacherId, setTeacherId] = useState('')
-  const [myClassIds, setMyClassIds] = useState<Set<string>>(new Set())
+  const [myClasses, setMyClasses] = useState<{ id: string; cohort: number | null }[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 일정 목록 범위: 전체(공통일정 포함) / 내 수업만 — 기본은 내 수업
-  const [scope, setScope] = useState<'all' | 'mine'>('mine')
-  // 지난 일정은 기본으로 접어둔다 (예정 일정이 먼저 눈에 들어오도록)
   const [showPast, setShowPast] = useState(false)
 
   useEffect(() => { init() }, [])
@@ -52,26 +49,36 @@ export default function TeacherManagementPage() {
     setTeacherId(user.id)
 
     const { data: classRows } = await supabase.from('classes')
-      .select('id')
+      .select('id, cohort')
       .filter('teacher_ids', 'cs', `{${user.id}}`)
 
-    // 일정은 지난 일정을 포함해 대상을 가리지 않고 전부 조회한다 — 전체 단원/기수 대상
-    // 공통일정도 선생님이 함께 봐야 하므로 날짜·teacher_id·담당 반으로 좁히지 않는다.
+    // 일정은 지난 일정을 포함해 대상을 가리지 않고 전부 조회한 뒤 화면에서 걸러낸다.
     // (선생님 계정의 schedules RLS는 SELECT 전체 허용)
     const { data: scheduleRows } = await supabase.from('schedules')
       .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_type, target_cohort, target_class_id, teacher_id, target_class:target_class_id(name, cohort), target_user:target_user_id(name), teacher:teacher_id(name)')
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
 
-    setMyClassIds(new Set((classRows || []).map((c: any) => c.id)))
+    setMyClasses((classRows || []) as any)
     setSchedules((scheduleRows as any) || [])
     setLoading(false)
   }
+
+  const myClassIds = useMemo(() => new Set(myClasses.map(c => c.id)), [myClasses])
+  const myCohorts = useMemo(
+    () => new Set(myClasses.map(c => c.cohort).filter((c): c is number => c != null)),
+    [myClasses]
+  )
 
   // 공동 담임 반은 schedules.teacher_id에 대표 선생님 한 명만 저장되므로,
   // 담당 반 대상 일정도 "내 수업"으로 함께 인정한다.
   const isMine = (sc: Schedule) =>
     sc.teacher_id === teacherId || (!!sc.target_class_id && myClassIds.has(sc.target_class_id))
+
+  // 전체 단원 일정, 그리고 내 담당 반의 기수를 대상으로 한 일정은 공통 일정으로 본다.
+  const isCommon = (sc: Schedule) =>
+    sc.target_type === 'all' ||
+    (sc.target_type === 'cohort' && (sc.target_cohort || []).some(n => myCohorts.has(n)))
 
   const targetLabel = (sc: Schedule) => {
     switch (sc.target_type) {
@@ -90,8 +97,7 @@ export default function TeacherManagementPage() {
     }
   }
 
-  // toISOString()은 UTC 기준이라 KST 자정~오전 9시 사이에 하루 전 날짜가 나온다.
-  // "오늘 이후인가"를 판단하는 값이므로 브라우저 로컬 날짜로 만든다.
+  // 타임존 문제 방지를 위해 로컬 날짜 문자열(YYYY-MM-DD)로 비교한다.
   const todayStr = useMemo(() => {
     const d = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -99,17 +105,15 @@ export default function TeacherManagementPage() {
   }, [])
   const isPast = (sc: Schedule) => sc.schedule_date.substring(0, 10) < todayStr
 
-  // 예정(오늘 포함) 일정은 가까운 순, 지난 일정은 최신순으로 나눠 둔다.
-  // 원본 schedules가 날짜 오름차순이므로 지난 쪽은 뒤집기만 하면 최신순이 된다.
+  // 내 수업 + 공통 일정을 한 목록으로. 예정은 가까운 순, 지난 일정은 최신순으로 뒤에 붙인다.
+  // (원본이 날짜 오름차순이므로 지난 쪽은 뒤집기만 하면 최신순)
   const { upcoming, pastList } = useMemo(() => {
-    const list = scope === 'mine' ? schedules.filter(isMine) : schedules
+    const list = schedules.filter(sc => isMine(sc) || isCommon(sc))
     return {
       upcoming: list.filter(sc => !isPast(sc)),
       pastList: list.filter(isPast).reverse(),
     }
-  }, [schedules, scope, teacherId, myClassIds, todayStr])
-
-  const mineCount = useMemo(() => schedules.filter(isMine).length, [schedules, teacherId, myClassIds])
+  }, [schedules, teacherId, myClassIds, myCohorts, todayStr])
 
   const renderCard = (sc: Schedule, past: boolean) => {
     const cfg = TYPE_CONFIG[sc.schedule_type] ?? { label: sc.schedule_type, icon: '📌' }
@@ -159,54 +163,40 @@ export default function TeacherManagementPage() {
 
   if (loading) return <div className={styles.loading}>불러오는 중...</div>
 
+  const visibleCount = upcoming.length + (showPast ? pastList.length : 0)
+
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>📚 수업 관리</h1>
+      <div className={styles.headerRow}>
+        <h1 className={styles.title}>📚 수업 관리</h1>
+        <label className={styles.pastToggle}>
+          <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+          지난 일정 포함해서 보기
+        </label>
+      </div>
 
       <div className={styles.card}>
         <h2 className={styles.cardTitle}>
-          전체 일정
-          <span className={styles.countBadge}>{upcoming.length + pastList.length}건</span>
+          {showPast ? '전체 일정' : '다가오는 일정'}
+          <span className={styles.countBadge}>{visibleCount}건</span>
         </h2>
 
-        <div className={styles.filterRow}>
-          <button
-            className={`${styles.filterChip} ${scope === 'all' ? styles.filterChipActive : ''}`}
-            onClick={() => setScope('all')}
-          >
-            전체 {schedules.length}
-          </button>
-          <button
-            className={`${styles.filterChip} ${scope === 'mine' ? styles.filterChipActive : ''}`}
-            onClick={() => setScope('mine')}
-          >
-            내 수업 {mineCount}
-          </button>
-        </div>
-
-        {upcoming.length === 0 && pastList.length === 0 ? (
+        {visibleCount === 0 ? (
           <div className={styles.empty}>
-            {scope === 'mine' ? '내 수업 일정이 없습니다.' : '등록된 일정이 없습니다.'}
+            {showPast ? '등록된 일정이 없습니다.' : '다가오는 일정이 없습니다.'}
           </div>
         ) : (
           <>
             {upcoming.length === 0 ? (
-              <div className={styles.empty}>예정된 일정이 없습니다.</div>
+              <div className={styles.empty}>다가오는 일정이 없습니다.</div>
             ) : (
               upcoming.map(sc => renderCard(sc, false))
             )}
 
-            {pastList.length > 0 && (
+            {showPast && pastList.length > 0 && (
               <>
-                <button
-                  type="button"
-                  className={styles.pastToggle}
-                  onClick={() => setShowPast(v => !v)}
-                >
-                  <span className={styles.pastToggleChevron}>{showPast ? '▾' : '▸'}</span>
-                  지난 일정 {pastList.length}건 {showPast ? '접기' : '펼쳐보기'}
-                </button>
-                {showPast && pastList.map(sc => renderCard(sc, true))}
+                <div className={styles.pastDivider}><span>지난 일정</span></div>
+                {pastList.map(sc => renderCard(sc, true))}
               </>
             )}
           </>

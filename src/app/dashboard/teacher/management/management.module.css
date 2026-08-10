@@ -13,6 +13,32 @@
   letter-spacing: -0.02em;
 }
 
+/* 제목 + 지난 일정 체크박스 (학생 수업일정 화면과 동일한 스타일) */
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.headerRow .title { margin-bottom: 0; }
+
+.pastToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 8px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+}
+.pastToggle input { cursor: pointer; }
+
 /* ── 카드 ── */
 .card {
   background: white;
@@ -35,12 +61,6 @@
   letter-spacing: -0.02em;
 }
 
-.cardDesc {
-  font-size: 12px;
-  color: var(--text-mid, #5A6B7D);
-  margin: -10px 0 16px;
-}
-
 .countBadge {
   margin-left: auto;
   font-size: 11px;
@@ -49,32 +69,6 @@
   background: var(--primary-light, #E6F7F6);
   padding: 2px 10px;
   border-radius: 999px;
-}
-
-/* ── 일정 범위 필터 ── */
-.filterRow {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.filterChip {
-  padding: 6px 14px;
-  border: 1.5px solid #E6F0EF;
-  border-radius: 999px;
-  background: white;
-  color: var(--text-mid, #5A6B7D);
-  font-size: 13px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
-}
-.filterChip:hover { border-color: var(--primary-color, #00A99D); }
-.filterChipActive {
-  background: var(--primary-color, #00A99D);
-  border-color: var(--primary-color, #00A99D);
-  color: white;
 }
 
 /* ── 수업 일정 카드 ── */
@@ -104,31 +98,23 @@
 }
 .scheduleCardPast:hover { opacity: 0.85; }
 
-/* 지난 일정 접기/펼치기 토글 */
-.pastToggle {
+/* 예정 → 지난 일정 경계 구분선 */
+.pastDivider {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
+  gap: 10px;
   margin: 20px 0 12px;
-  padding: 10px 14px;
-  border: 1.5px dashed #CBD5E1;
-  border-radius: var(--radius-md, 14px);
-  background: #F8FAFC;
-  color: #64748B;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 800;
 }
-.pastToggle:hover {
-  border-color: var(--primary-color, #00A99D);
-  color: var(--primary-color, #00A99D);
-  background: #F4FBFA;
+.pastDivider::before,
+.pastDivider::after {
+  content: '';
+  flex: 1;
+  height: 1.5px;
+  background: #CBD5E1;
 }
-
-.pastToggleChevron { font-size: 11px; width: 10px; flex-shrink: 0; }
 
 .scTop {
   display: flex;

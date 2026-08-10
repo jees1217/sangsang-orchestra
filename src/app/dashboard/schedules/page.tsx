@@ -26,6 +26,9 @@ export default function ScheduleManagementPage() {
   const [teachers, setTeachers] = useState<any[]>([])
   const [allClasses, setAllClasses] = useState<any[]>([])
   const [allStudents, setAllStudents] = useState<any[]>([])
+  // 교육차수(예: 2027.06~2028.05) — 학생 단위 기수(cohort)와는 별개의, 연 단위 프로그램 주기.
+  // 관리자 전용 필터라서 director에게는 목록만 받아 두고 UI를 노출하지 않는다.
+  const [terms, setTerms] = useState<{ term: number; started_at: string | null; closed_at: string | null }[]>([])
 
   // 폼 상태
   const [title, setTitle] = useState('')
@@ -52,11 +55,14 @@ export default function ScheduleManagementPage() {
   const [calMonth, setCalMonth] = useState(new Date().getMonth()) // 0-based
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'time' | 'title'>('time')
+  // 지난 일정은 기본으로 접어둔다 (날짜를 콕 집어 선택했을 땐 과거든 미래든 그대로 보여준다)
+  const [showPast, setShowPast] = useState(false)
 
   // 목록·캘린더 공통 조회 필터 (폼의 filterCohort와는 별개 — 이쪽은 "무엇을 볼지")
   const [viewCohort, setViewCohort] = useState<string>('')
   const [viewClassId, setViewClassId] = useState<string>('')
   const [viewTeacherId, setViewTeacherId] = useState<string>('')
+  const [viewTerm, setViewTerm] = useState<string>('')
 
   const supabase = createClient()
 
@@ -71,15 +77,17 @@ export default function ScheduleManagementPage() {
       const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single()
       setUserRole(me?.role || '')
 
-      const [{ data: tData }, { data: cData }, { data: sData }] = await Promise.all([
+      const [{ data: tData }, { data: cData }, { data: sData }, { data: termData }] = await Promise.all([
         supabase.from('users').select('id, name').in('role', [...CLASS_TEACHER_ROLES]).order('name'),
         supabase.from('classes').select('id, name, cohort, teacher_ids'),
         supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name'),
+        supabase.from('attendance_terms').select('term, started_at, closed_at').order('term', { ascending: false }),
       ])
 
       setTeachers(tData || [])
       setAllClasses(cData || [])
       setAllStudents(sData || [])
+      setTerms(termData || [])
       await fetchSchedules()
     } catch (error) {
       console.error('로딩 실패:', error)
@@ -189,10 +197,20 @@ export default function ScheduleManagementPage() {
     await fetchSchedules()
   }
 
-  // 기수/반/선생님 필터. 캘린더와 목록이 같은 결과를 보도록 한 번만 걸러 둔다.
+  // schedule_date(date)를 교육차수의 started_at/closed_at(timestamptz) 구간과 비교한다.
+  // 시각까지 볼 필요는 없으니 날짜 부분만 잘라서 비교 — 경계가 null이면 그쪽은 열려 있다.
+  const isInTerm = (sc: any, t: { started_at: string | null; closed_at: string | null }) => {
+    const d = sc.schedule_date.substring(0, 10)
+    if (t.started_at && d < t.started_at.substring(0, 10)) return false
+    if (t.closed_at && d > t.closed_at.substring(0, 10)) return false
+    return true
+  }
+
+  // 기수/반/선생님/교육차수 필터. 캘린더와 목록이 같은 결과를 보도록 한 번만 걸러 둔다.
   // 전체 단원(all) 대상 일정은 해당 기수도 실제로 참여하므로 기수 필터에 함께 포함한다.
   const filteredSchedules = useMemo(() => {
     const cohortNum = viewCohort ? Number(viewCohort) : null
+    const termRow = viewTerm ? terms.find(t => t.term === Number(viewTerm)) : null
     return schedules.filter(sc => {
       if (cohortNum !== null) {
         const hit =
@@ -204,12 +222,22 @@ export default function ScheduleManagementPage() {
       }
       if (viewClassId && sc.target_class_id !== viewClassId) return false
       if (viewTeacherId && sc.teacher_id !== viewTeacherId) return false
+      if (termRow && !isInTerm(sc, termRow)) return false
       return true
     })
-  }, [schedules, viewCohort, viewClassId, viewTeacherId])
+  }, [schedules, viewCohort, viewClassId, viewTeacherId, viewTerm, terms])
 
-  const hasActiveFilter = !!(viewCohort || viewClassId || viewTeacherId)
-  const resetFilters = () => { setViewCohort(''); setViewClassId(''); setViewTeacherId('') }
+  const hasActiveFilter = !!(viewCohort || viewClassId || viewTeacherId || viewTerm)
+  const resetFilters = () => { setViewCohort(''); setViewClassId(''); setViewTeacherId(''); setViewTerm('') }
+
+  // 교육차수 셀렉트 라벨: "5차 (2027.06 ~ 2028.05)" / 마감 전이면 "진행중"
+  const termOptionLabel = (t: { term: number; started_at: string | null; closed_at: string | null }) => {
+    const fmt = (v: string) => v.slice(0, 7).replace('-', '.')
+    if (!t.started_at && !t.closed_at) return `${t.term}차`
+    const from = t.started_at ? fmt(t.started_at) : '~'
+    const to = t.closed_at ? fmt(t.closed_at) : '진행중'
+    return `${t.term}차 (${from} ~ ${to})`
+  }
 
   // 날짜별 일정 맵 (캘린더 렌더링용)
   const scheduleMap = useMemo(() => {
@@ -227,13 +255,29 @@ export default function ScheduleManagementPage() {
   const selectedSchedules = selectedDate ? (scheduleMap[selectedDate] || []) : []
 
   // 정렬 기준 적용 (시간순: 날짜/시간 오름차순, 이름순: 제목 가나다순)
-  const sortedSchedules = useMemo(() => {
-    const list = selectedDate ? selectedSchedules : filteredSchedules
-    if (sortBy === 'title') {
-      return [...list].sort((a, b) => a.title.localeCompare(b.title, 'ko'))
-    }
-    return list
-  }, [selectedDate, selectedSchedules, filteredSchedules, sortBy])
+  const applySort = (list: any[]) =>
+    sortBy === 'title' ? [...list].sort((a, b) => a.title.localeCompare(b.title, 'ko')) : list
+
+  const sortedSelectedSchedules = useMemo(
+    () => applySort(selectedSchedules),
+    [selectedSchedules, sortBy]
+  )
+
+  // 타임존 문제 방지를 위해 로컬 날짜 문자열(YYYY-MM-DD)로 비교한다.
+  const todayStr = useMemo(() => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }, [])
+  const isPastSchedule = (sc: any) => sc.schedule_date.substring(0, 10) < todayStr
+
+  // 날짜 미선택(전체 목록) 상태에서만 예정/지난 일정을 나눈다.
+  // filteredSchedules가 이미 날짜 오름차순이므로 지난 쪽은 뒤집기만 하면 최신순이 된다.
+  const { upcomingSchedules, pastSchedules } = useMemo(() => {
+    const upcoming = filteredSchedules.filter(sc => !isPastSchedule(sc))
+    const past = filteredSchedules.filter(isPastSchedule).slice().reverse()
+    return { upcomingSchedules: applySort(upcoming), pastSchedules: applySort(past) }
+  }, [filteredSchedules, sortBy, todayStr])
 
   // 이번 달 캘린더 날짜 계산
   const calendarDays = useMemo(() => {
@@ -294,6 +338,36 @@ export default function ScheduleManagementPage() {
     const cfg = TYPE_CONFIG[type] ?? { label: type, icon: '📌', colorClass: 'typeGray' }
     return <span className={`${styles.badge} ${styles[cfg.colorClass]}`}>{cfg.icon} {cfg.label}</span>
   }
+
+  const renderScheduleCard = (sc: any, past = false) => (
+    <div key={sc.id} className={`${styles.scheduleCard} ${past ? styles.scheduleCardPast : ''}`}>
+      <div className={styles.scHeader}>
+        <div className={styles.scHeaderLeft}>
+          <TypeBadge type={sc.schedule_type} />
+          <span className={styles.targetBadge}>👥 {getTargetLabel(sc)}</span>
+        </div>
+        {isAdmin && (
+          <div className={styles.cardActions}>
+            <button className={styles.editBtn} onClick={() => handleEdit(sc)}>수정</button>
+            <button className={styles.deleteBtn} onClick={() => handleDelete(sc.id)}>삭제</button>
+          </div>
+        )}
+      </div>
+      <div className={styles.scTitle}>{sc.title}</div>
+      <div className={styles.scMeta}>
+        <span>🗓️ {sc.schedule_date.substring(0, 10)}</span>
+        <span>⏰ {sc.start_time.substring(0,5)} ~ {sc.end_time.substring(0,5)}</span>
+        {sc.teacher && <span>👨‍🏫 {sc.teacher.name} 선생님</span>}
+      </div>
+      {sc.location && (
+        <div className={styles.scLocation}>
+          📍 {sc.location.startsWith('http')
+            ? <a href={sc.location} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'underline' }}>{sc.location}</a>
+            : sc.location}
+        </div>
+      )}
+    </div>
+  )
 
   if (loading) return (
     <div className={styles.container}>
@@ -497,6 +571,17 @@ export default function ScheduleManagementPage() {
                 </select>
               </div>
 
+              {/* 교육차수(연 단위 프로그램 주기) — 학생 기수(cohort)와는 다른 개념이라 관리자만 노출 */}
+              {isAdmin && (
+                <div className={styles.filterField}>
+                  <label className={styles.filterLabel}>교육차수</label>
+                  <select className={styles.select} value={viewTerm} onChange={e => setViewTerm(e.target.value)}>
+                    <option value="">전체 차수</option>
+                    {terms.map(t => <option key={t.term} value={t.term}>{termOptionLabel(t)}</option>)}
+                  </select>
+                </div>
+              )}
+
               {hasActiveFilter && (
                 <button type="button" className={styles.filterResetBtn} onClick={resetFilters}>
                   ✕ 필터 해제
@@ -572,56 +657,52 @@ export default function ScheduleManagementPage() {
             <h2 className={styles.cardTitle}>
               {selectedDate
                 ? `📋 ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} 일정 (${selectedSchedules.length}건)`
-                : `🗓 오케스트라 확정 일정 ${hasActiveFilter ? '' : '전체 '}(${filteredSchedules.length}건)`
+                : `🗓 오케스트라 ${showPast ? '전체' : '다가오는'} 확정 일정 (${upcomingSchedules.length + (showPast ? pastSchedules.length : 0)}건)`
               }
               {selectedDate && (
                 <button className={styles.clearBtn} onClick={() => setSelectedDate(null)}>전체 보기</button>
               )}
             </h2>
 
-            <div className={styles.formGroup} style={{ maxWidth: 160, marginBottom: 12 }}>
-              <select className={styles.select} value={sortBy} onChange={e => setSortBy(e.target.value as any)}>
+            <div className={styles.listControls}>
+              <select className={styles.select} style={{ maxWidth: 160 }} value={sortBy} onChange={e => setSortBy(e.target.value as any)}>
                 <option value="time">🕐 시간순</option>
                 <option value="title">🔤 이름순</option>
               </select>
+              {!selectedDate && (
+                <label className={styles.pastToggle}>
+                  <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+                  지난 일정 포함해서 보기
+                </label>
+              )}
             </div>
 
-            {sortedSchedules.length === 0
-              ? <div className={styles.empty}>
-                  {hasActiveFilter
-                    ? '조건에 맞는 일정이 없습니다.'
-                    : selectedDate ? '이 날에 등록된 일정이 없습니다.' : '등록된 일정이 없습니다.'}
+            {selectedDate ? (
+              sortedSelectedSchedules.length === 0 ? (
+                <div className={styles.empty}>
+                  {hasActiveFilter ? '조건에 맞는 일정이 없습니다.' : '이 날에 등록된 일정이 없습니다.'}
                 </div>
-              : sortedSchedules.map(sc => (
-                <div key={sc.id} className={styles.scheduleCard}>
-                  <div className={styles.scHeader}>
-                    <div className={styles.scHeaderLeft}>
-                      <TypeBadge type={sc.schedule_type} />
-                      <span className={styles.targetBadge}>👥 {getTargetLabel(sc)}</span>
-                    </div>
-                    {isAdmin && (
-                      <div className={styles.cardActions}>
-                        <button className={styles.editBtn} onClick={() => handleEdit(sc)}>수정</button>
-                        <button className={styles.deleteBtn} onClick={() => handleDelete(sc.id)}>삭제</button>
-                      </div>
-                    )}
+              ) : (
+                sortedSelectedSchedules.map(sc => renderScheduleCard(sc))
+              )
+            ) : (
+              <>
+                {upcomingSchedules.length === 0 ? (
+                  <div className={styles.empty}>
+                    {hasActiveFilter ? '조건에 맞는 일정이 없습니다.' : '다가오는 일정이 없습니다.'}
                   </div>
-                  <div className={styles.scTitle}>{sc.title}</div>
-                  <div className={styles.scMeta}>
-                    <span>🗓️ {sc.schedule_date.substring(0, 10)}</span>
-                    <span>⏰ {sc.start_time.substring(0,5)} ~ {sc.end_time.substring(0,5)}</span>
-                    {sc.teacher && <span>👨‍🏫 {sc.teacher.name} 선생님</span>}
-                  </div>
-                  {sc.location && (
-                    <div className={styles.scLocation}>
-                      📍 {sc.location.startsWith('http')
-                        ? <a href={sc.location} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)', textDecoration: 'underline' }}>{sc.location}</a>
-                        : sc.location}
-                    </div>
-                  )}
-                </div>
-              ))
-            }
+                ) : (
+                  upcomingSchedules.map(sc => renderScheduleCard(sc, false))
+                )}
+
+                {showPast && pastSchedules.length > 0 && (
+                  <>
+                    <div className={styles.pastDivider}><span>지난 일정</span></div>
+                    {pastSchedules.map(sc => renderScheduleCard(sc, true))}
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
