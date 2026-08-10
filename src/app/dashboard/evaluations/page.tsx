@@ -867,8 +867,8 @@ export default function EvaluationsPage() {
         </div>
       ) : (
       <div className={styles.layout}>
-        {/* ── 왼쪽: 학생 목록 ── */}
-        <div className={styles.studentList}>
+        {/* ── 학생 목록: 미선택 시 전체 폭 카드 그리드, 선택 시 왼쪽 좁은 목록 ── */}
+        <div className={`${styles.studentList} ${selectedStudent ? '' : styles.studentListFull}`}>
           <div className={styles.listHeader}>
             <div className={styles.listHeaderTitle}>학생 목록 ({students.length}명) · {termLabel} 기준</div>
             <div className={styles.sortControls}>
@@ -891,47 +891,55 @@ export default function EvaluationsPage() {
           </div>
           {students.length === 0 ? (
             <div className={styles.empty} style={{ padding: '20px' }}>담당 학생이 없습니다.</div>
-          ) : sortedStudents.map(s => {
-            const rateColor = rateColorByAbsence(s.stats.effectiveAbsent)
-            return (
-              <div
-                key={s.id}
-                className={`${styles.studentItem} ${selectedStudent?.id === s.id ? styles.studentItemActive : ''}`}
-                onClick={() => setSelectedStudent(s)}
-              >
-                <div className={styles.studentItemMain}>
-                  <div className={styles.studentName}>{s.name}</div>
-                  <div className={styles.studentTags}>
-                    {s.instrument && <span className={styles.tag}>{s.instrument}</span>}
-                    {s.cohort && <span className={styles.tag}>{s.cohort}기</span>}
-                  </div>
-                  <div className={styles.className}>{s.classes?.name || '소속 반 없음'}</div>
+          ) : (
+            <div className={selectedStudent ? styles.studentRows : styles.studentGrid}>
+              {sortedStudents.map(s => {
+                const rateColor = rateColorByAbsence(s.stats.effectiveAbsent)
+                return (
                   <div
-                    className={styles.cumulativeInline}
-                    title={`${termLabel} 누적 · ${absenceBreakdown(s.stats) ?? `결석 ${s.stats.effectiveAbsent}회`}`}
+                    key={s.id}
+                    className={`${styles.studentItem} ${selectedStudent?.id === s.id ? styles.studentItemActive : ''}`}
+                    onClick={() => setSelectedStudent(s)}
                   >
-                    <span style={{ color: '#16a34a' }}>출석 {s.stats.present}</span>
-                    <span style={{ color: '#d97706' }}>지각 {s.stats.late}</span>
-                    {s.stats.excused > 0 && <span style={{ color: '#2563eb' }}>인정 -{s.stats.excused}</span>}
-                    <span style={{ color: '#dc2626' }}>결석 {s.stats.effectiveAbsent}</span>
+                    <div className={styles.studentItemMain}>
+                      <div className={styles.studentName}>{s.name}</div>
+                      <div className={styles.studentTags}>
+                        {s.instrument && <span className={styles.tag}>{s.instrument}</span>}
+                        {s.cohort && <span className={styles.tag}>{s.cohort}기</span>}
+                      </div>
+                      <div className={styles.className}>{s.classes?.name || '소속 반 없음'}</div>
+                      <div
+                        className={styles.cumulativeInline}
+                        title={`${termLabel} 누적 · ${absenceBreakdown(s.stats) ?? `결석 ${s.stats.effectiveAbsent}회`}`}
+                      >
+                        <span style={{ color: '#16a34a' }}>출석 {s.stats.present}</span>
+                        <span style={{ color: '#d97706' }}>지각 {s.stats.late}</span>
+                        {s.stats.excused > 0 && <span style={{ color: '#2563eb' }}>인정 -{s.stats.excused}</span>}
+                        <span style={{ color: '#dc2626' }}>결석 {s.stats.effectiveAbsent}</span>
+                      </div>
+                    </div>
+                    <div className={styles.rateWrap}>
+                      <span className={styles.rateNum} style={{ color: rateColor }}>{s.stats.rate}%</span>
+                      <span className={styles.rateLabel}>출석률</span>
+                    </div>
                   </div>
-                </div>
-                <div className={styles.rateWrap}>
-                  <span className={styles.rateNum} style={{ color: rateColor }}>{s.stats.rate}%</span>
-                  <span className={styles.rateLabel}>출석률</span>
-                </div>
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* ── 오른쪽: 상세 패널 ── */}
+        {/* ── 오른쪽: 상세 패널 (학생 선택 시에만) ── */}
+        {selectedStudent && (
         <div className={styles.mainContent}>
-          {!selectedStudent ? (
-            <div className={styles.card} style={{ textAlign: 'center', color: '#a0aec0', padding: '60px 0' }}>
-              왼쪽 명단에서 학생을 선택해주세요.
-            </div>
-          ) : detailLoading ? (
+          <button
+            type="button"
+            className={styles.backToListBtn}
+            onClick={() => setSelectedStudent(null)}
+          >
+            ← 전체 학생 목록으로 돌아가기
+          </button>
+          {detailLoading ? (
             <div className={styles.loading}>정보를 불러오는 중...</div>
           ) : (
             <>
@@ -1116,6 +1124,7 @@ export default function EvaluationsPage() {
             </>
           )}
         </div>
+        )}
       </div>
       )}
     </div>

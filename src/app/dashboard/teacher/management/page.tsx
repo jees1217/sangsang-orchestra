@@ -4,20 +4,14 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './management.module.css'
 
-const TYPE_CONFIG = {
+const TYPE_CONFIG: Record<string, { label: string; icon: string }> = {
   online:          { label: '온라인 클래스', icon: '💻' },
   offline:         { label: '오프라인 합주', icon: '🎻' },
   rehearsal:       { label: '리허설',       icon: '🔄' },
   special_lecture: { label: '명사 특강',    icon: '🎓' },
+  camp:            { label: '음악 캠프',    icon: '🏕️' },
   performance:     { label: '연주회',       icon: '🎉' },
   ot:              { label: '오리엔테이션', icon: '👋' },
-}
-
-interface ClassData {
-  id: string
-  name: string
-  cohort: number | null
-  meeting_link: string | null
 }
 
 interface Schedule {
@@ -28,37 +22,27 @@ interface Schedule {
   start_time: string
   end_time: string
   location: string | null
+  target_type: string
+  target_cohort: number[] | null
   target_class_id: string | null
-  target_class: { name: string; cohort: number } | null
+  teacher_id: string | null
+  target_class: { name: string; cohort: number | null } | null
+  target_user: { name: string } | null
+  teacher: { name: string } | null
 }
 
 export default function TeacherManagementPage() {
   const supabase = createClient()
 
   const [teacherId, setTeacherId] = useState('')
-  const [myClasses, setMyClasses] = useState<ClassData[]>([])
+  const [myClassIds, setMyClassIds] = useState<Set<string>>(new Set())
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 일정 등록 폼
-  const [scheduleType, setScheduleType] = useState('online')
-  const [targetClassId, setTargetClassId] = useState('')
-  const [scheduleDate, setScheduleDate] = useState('')
-  const [startTime, setStartTime] = useState('10:00')
-  const [endTime, setEndTime] = useState('12:00')
-  const [title, setTitle] = useState('')
-  const [isTitleManual, setIsTitleManual] = useState(false)
-  const [location, setLocation] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // 일정 링크 인라인 편집
-  const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
-  const [editingLink, setEditingLink] = useState('')
-  const [savingLink, setSavingLink] = useState(false)
-
-  // 반 고정 링크 편집
-  const [classLinkDraft, setClassLinkDraft] = useState<Record<string, string>>({})
-  const [savingClassLink, setSavingClassLink] = useState<string | null>(null)
+  // 일정 목록 범위: 전체(공통일정 포함) / 내 수업만 — 기본은 내 수업
+  const [scope, setScope] = useState<'all' | 'mine'>('mine')
+  // 지난 일정은 기본으로 접어둔다 (예정 일정이 먼저 눈에 들어오도록)
+  const [showPast, setShowPast] = useState(false)
 
   useEffect(() => { init() }, [])
 
@@ -67,131 +51,110 @@ export default function TeacherManagementPage() {
     if (!user) return
     setTeacherId(user.id)
 
-    const todayStr = new Date().toISOString().split('T')[0]
-
     const { data: classRows } = await supabase.from('classes')
-      .select('id, name, cohort, meeting_link')
+      .select('id')
       .filter('teacher_ids', 'cs', `{${user.id}}`)
-      .order('name')
 
-    const classes = (classRows || []) as ClassData[]
-    const classIds = classes.map(c => c.id)
-    // 공동 담임 반의 경우 schedules.teacher_id에는 반 대표 선생님 한 명만 저장되므로,
-    // 내가 담당하는 반을 대상으로 한 일정도 함께 조회해야 누락되지 않음
-    const scheduleFilter = classIds.length > 0
-      ? `teacher_id.eq.${user.id},target_class_id.in.(${classIds.join(',')})`
-      : `teacher_id.eq.${user.id}`
-
+    // 일정은 지난 일정을 포함해 대상을 가리지 않고 전부 조회한다 — 전체 단원/기수 대상
+    // 공통일정도 선생님이 함께 봐야 하므로 날짜·teacher_id·담당 반으로 좁히지 않는다.
+    // (선생님 계정의 schedules RLS는 SELECT 전체 허용)
     const { data: scheduleRows } = await supabase.from('schedules')
-      .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_class_id, target_class:target_class_id(name, cohort)')
-      .or(scheduleFilter)
-      .gte('schedule_date', todayStr)
+      .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_type, target_cohort, target_class_id, teacher_id, target_class:target_class_id(name, cohort), target_user:target_user_id(name), teacher:teacher_id(name)')
       .order('schedule_date', { ascending: true })
       .order('start_time', { ascending: true })
 
-    setMyClasses(classes)
+    setMyClassIds(new Set((classRows || []).map((c: any) => c.id)))
     setSchedules((scheduleRows as any) || [])
-
-    const draft: Record<string, string> = {}
-    classes.forEach(c => { draft[c.id] = c.meeting_link || '' })
-    setClassLinkDraft(draft)
-
-    if (classes.length > 0) setTargetClassId(classes[0].id)
     setLoading(false)
   }
 
-  const refreshSchedules = async (uid: string) => {
-    const todayStr = new Date().toISOString().split('T')[0]
-    const classIds = myClasses.map(c => c.id)
-    const scheduleFilter = classIds.length > 0
-      ? `teacher_id.eq.${uid},target_class_id.in.(${classIds.join(',')})`
-      : `teacher_id.eq.${uid}`
-    const { data } = await supabase.from('schedules')
-      .select('id, title, schedule_type, schedule_date, start_time, end_time, location, target_class_id, target_class:target_class_id(name, cohort)')
-      .or(scheduleFilter)
-      .gte('schedule_date', todayStr)
-      .order('schedule_date', { ascending: true })
-      .order('start_time', { ascending: true })
-    setSchedules((data as any) || [])
-  }
+  // 공동 담임 반은 schedules.teacher_id에 대표 선생님 한 명만 저장되므로,
+  // 담당 반 대상 일정도 "내 수업"으로 함께 인정한다.
+  const isMine = (sc: Schedule) =>
+    sc.teacher_id === teacherId || (!!sc.target_class_id && myClassIds.has(sc.target_class_id))
 
-  const autoTitle = useMemo(() => {
-    const typeName = TYPE_CONFIG[scheduleType as keyof typeof TYPE_CONFIG]?.label || scheduleType
-    const cls = myClasses.find(c => c.id === targetClassId)
-    if (!cls) return typeName
-    return `${cls.cohort ? cls.cohort + '기 ' : ''}${cls.name} ${typeName}`
-  }, [scheduleType, targetClassId, myClasses])
-
-  const effectiveTitle = isTitleManual ? title : autoTitle
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (startTime >= endTime) return alert('종료 시간은 시작 시간보다 늦어야 합니다.')
-    if (!targetClassId) return alert('담당 반을 선택해주세요.')
-    setIsSubmitting(true)
-    try {
-      const { error } = await supabase.from('schedules').insert({
-        title: effectiveTitle,
-        schedule_type: scheduleType,
-        schedule_date: scheduleDate,
-        start_time: `${startTime}:00`,
-        end_time: `${endTime}:00`,
-        teacher_id: teacherId,
-        location: location || null,
-        target_type: 'class',
-        target_class_id: targetClassId,
-        created_by: teacherId,
-      })
-      if (error) throw error
-      alert('수업 일정이 등록되었습니다.')
-      setTitle(''); setIsTitleManual(false); setLocation(''); setScheduleDate('')
-      await refreshSchedules(teacherId)
-    } catch (err) {
-      console.error(err)
-      alert('등록 중 오류가 발생했습니다.')
-    } finally {
-      setIsSubmitting(false)
+  const targetLabel = (sc: Schedule) => {
+    switch (sc.target_type) {
+      case 'all':
+        return '전체 단원'
+      case 'cohort':
+        return sc.target_cohort?.length ? `${sc.target_cohort.join('·')}기` : '기수 대상'
+      case 'class':
+        return sc.target_class
+          ? `${sc.target_class.cohort ? `${sc.target_class.cohort}기 ` : ''}${sc.target_class.name}`
+          : '반 대상'
+      case 'individual':
+        return sc.target_user ? `${sc.target_user.name} 개인` : '개인'
+      default:
+        return '기타'
     }
   }
 
-  const handleDeleteSchedule = async (id: string) => {
-    if (!confirm('이 수업 일정을 삭제하시겠습니까?')) return
-    await supabase.from('schedules').delete().eq('id', id)
-    setSchedules(prev => prev.filter(s => s.id !== id))
-  }
+  // toISOString()은 UTC 기준이라 KST 자정~오전 9시 사이에 하루 전 날짜가 나온다.
+  // "오늘 이후인가"를 판단하는 값이므로 브라우저 로컬 날짜로 만든다.
+  const todayStr = useMemo(() => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }, [])
+  const isPast = (sc: Schedule) => sc.schedule_date.substring(0, 10) < todayStr
 
-  const handleSaveScheduleLink = async (scheduleId: string) => {
-    setSavingLink(true)
-    try {
-      const { error } = await supabase.from('schedules')
-        .update({ location: editingLink || null }).eq('id', scheduleId)
-      if (error) throw error
-      setSchedules(prev => prev.map(s =>
-        s.id === scheduleId ? { ...s, location: editingLink || null } : s
-      ))
-      setEditingLinkId(null)
-    } catch {
-      alert('저장 중 오류가 발생했습니다.')
-    } finally {
-      setSavingLink(false)
+  // 예정(오늘 포함) 일정은 가까운 순, 지난 일정은 최신순으로 나눠 둔다.
+  // 원본 schedules가 날짜 오름차순이므로 지난 쪽은 뒤집기만 하면 최신순이 된다.
+  const { upcoming, pastList } = useMemo(() => {
+    const list = scope === 'mine' ? schedules.filter(isMine) : schedules
+    return {
+      upcoming: list.filter(sc => !isPast(sc)),
+      pastList: list.filter(isPast).reverse(),
     }
-  }
+  }, [schedules, scope, teacherId, myClassIds, todayStr])
 
-  const handleSaveClassLink = async (classId: string) => {
-    setSavingClassLink(classId)
-    try {
-      const { error } = await supabase.from('classes')
-        .update({ meeting_link: classLinkDraft[classId] || null }).eq('id', classId)
-      if (error) throw error
-      setMyClasses(prev => prev.map(c =>
-        c.id === classId ? { ...c, meeting_link: classLinkDraft[classId] || null } : c
-      ))
-      alert('링크가 저장되었습니다.')
-    } catch {
-      alert('저장 중 오류가 발생했습니다.')
-    } finally {
-      setSavingClassLink(null)
-    }
+  const mineCount = useMemo(() => schedules.filter(isMine).length, [schedules, teacherId, myClassIds])
+
+  const renderCard = (sc: Schedule, past: boolean) => {
+    const cfg = TYPE_CONFIG[sc.schedule_type] ?? { label: sc.schedule_type, icon: '📌' }
+    const isOnline = sc.schedule_type === 'online'
+    const mine = isMine(sc)
+
+    return (
+      <div
+        key={sc.id}
+        className={`${styles.scheduleCard} ${mine ? styles.scheduleCardMine : ''} ${past ? styles.scheduleCardPast : ''}`}
+      >
+        <div className={styles.scTop}>
+          <span className={`${styles.typeBadge} ${isOnline ? styles.badgeOnline : styles.badgeDefault}`}>
+            {cfg.icon} {cfg.label}
+          </span>
+          <span className={styles.classBadge}>{targetLabel(sc)}</span>
+          {mine && <span className={styles.mineBadge}>내 수업</span>}
+        </div>
+
+        <div className={styles.scTitle}>{sc.title}</div>
+        <div className={styles.scMeta}>
+          <span>🗓 {sc.schedule_date.substring(0, 10)}</span>
+          <span>⏰ {sc.start_time.substring(0, 5)} ~ {sc.end_time.substring(0, 5)}</span>
+          {sc.teacher?.name && <span>👤 {sc.teacher.name}</span>}
+        </div>
+
+        {/* 온라인: 링크 */}
+        {isOnline && (
+          <div className={styles.linkArea}>
+            {sc.location ? (
+              <a href={sc.location} target="_blank" rel="noreferrer" className={styles.linkAnchor}>
+                🔗 수업 링크 열기
+              </a>
+            ) : (
+              <span className={styles.noLink}>링크 미등록</span>
+            )}
+          </div>
+        )}
+
+        {/* 오프라인: 장소 */}
+        {!isOnline && sc.location && (
+          <div className={styles.scLocation}>📍 {sc.location}</div>
+        )}
+      </div>
+    )
   }
 
   if (loading) return <div className={styles.loading}>불러오는 중...</div>
@@ -200,201 +163,54 @@ export default function TeacherManagementPage() {
     <div className={styles.container}>
       <h1 className={styles.title}>📚 수업 관리</h1>
 
-      <div className={styles.layout}>
+      <div className={styles.card}>
+        <h2 className={styles.cardTitle}>
+          전체 일정
+          <span className={styles.countBadge}>{upcoming.length + pastList.length}건</span>
+        </h2>
 
-        {/* ── 왼쪽: 등록 폼 + 반 링크 ── */}
-        <div className={styles.leftPanel}>
+        <div className={styles.filterRow}>
+          <button
+            className={`${styles.filterChip} ${scope === 'all' ? styles.filterChipActive : ''}`}
+            onClick={() => setScope('all')}
+          >
+            전체 {schedules.length}
+          </button>
+          <button
+            className={`${styles.filterChip} ${scope === 'mine' ? styles.filterChipActive : ''}`}
+            onClick={() => setScope('mine')}
+          >
+            내 수업 {mineCount}
+          </button>
+        </div>
 
-          {/* 수업 일정 등록 */}
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>수업 일정 등록</h2>
-            {myClasses.length === 0 ? (
-              <div className={styles.empty}>배정된 반이 없습니다. 관리자에게 반 배정을 요청하세요.</div>
+        {upcoming.length === 0 && pastList.length === 0 ? (
+          <div className={styles.empty}>
+            {scope === 'mine' ? '내 수업 일정이 없습니다.' : '등록된 일정이 없습니다.'}
+          </div>
+        ) : (
+          <>
+            {upcoming.length === 0 ? (
+              <div className={styles.empty}>예정된 일정이 없습니다.</div>
             ) : (
-              <form onSubmit={handleSubmit}>
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>수업 유형</label>
-                  <select className={styles.select} value={scheduleType} onChange={e => setScheduleType(e.target.value)}>
-                    {Object.entries(TYPE_CONFIG).map(([k, v]) => (
-                      <option key={k} value={k}>{v.icon} {v.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>담당 반</label>
-                  <select className={styles.select} value={targetClassId} onChange={e => setTargetClassId(e.target.value)}>
-                    {myClasses.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.cohort ? `${c.cohort}기 ` : ''}{c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>수업 제목</label>
-                  <input
-                    type="text"
-                    className={styles.input}
-                    required
-                    value={effectiveTitle}
-                    onChange={e => {
-                      const v = e.target.value
-                      if (v === '' || v === autoTitle) { setIsTitleManual(false); setTitle('') }
-                      else { setIsTitleManual(true); setTitle(v) }
-                    }}
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>날짜</label>
-                  <input type="date" className={styles.input} required value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>시간</label>
-                  <div className={styles.row}>
-                    <input type="time" className={styles.input} required value={startTime} onChange={e => setStartTime(e.target.value)} />
-                    <span className={styles.sep}>~</span>
-                    <input type="time" className={styles.input} required value={endTime} onChange={e => setEndTime(e.target.value)} />
-                  </div>
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label className={styles.label}>
-                    {scheduleType === 'online' ? 'Zoom / Meet 링크' : '장소'}
-                  </label>
-                  <input
-                    type={scheduleType === 'online' ? 'url' : 'text'}
-                    className={styles.input}
-                    placeholder={scheduleType === 'online' ? 'https://zoom.us/j/...' : '예: 연습실 3호'}
-                    value={location}
-                    onChange={e => setLocation(e.target.value)}
-                  />
-                </div>
-
-                <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
-                  {isSubmitting ? '등록 중...' : '✅ 수업 일정 등록'}
-                </button>
-              </form>
+              upcoming.map(sc => renderCard(sc, false))
             )}
-          </div>
 
-          {/* 담당 반 고정 링크 */}
-          {myClasses.length > 0 && (
-            <div className={styles.card}>
-              <h2 className={styles.cardTitle}>담당 반 고정 링크</h2>
-              <p className={styles.cardDesc}>반별 상시 Zoom/Meet 링크를 등록하면 학생들이 언제든지 확인할 수 있습니다.</p>
-              {myClasses.map(c => (
-                <div key={c.id} className={styles.classLinkBlock}>
-                  <div className={styles.classLinkName}>
-                    {c.cohort ? `${c.cohort}기 ` : ''}{c.name}
-                  </div>
-                  <div className={styles.linkEditRow}>
-                    <input
-                      type="url"
-                      className={styles.input}
-                      placeholder="https://zoom.us/j/..."
-                      value={classLinkDraft[c.id] || ''}
-                      onChange={e => setClassLinkDraft(prev => ({ ...prev, [c.id]: e.target.value }))}
-                    />
-                    <button
-                      className={styles.saveLinkBtn}
-                      onClick={() => handleSaveClassLink(c.id)}
-                      disabled={savingClassLink === c.id}
-                    >
-                      {savingClassLink === c.id ? '…' : '저장'}
-                    </button>
-                  </div>
-                  {c.meeting_link && (
-                    <a href={c.meeting_link} target="_blank" rel="noreferrer" className={styles.linkPreview}>
-                      🔗 현재 링크 열기
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── 오른쪽: 등록된 수업 일정 ── */}
-        <div className={styles.rightPanel}>
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle}>
-              등록된 수업 일정
-              <span className={styles.countBadge}>{schedules.length}건</span>
-            </h2>
-
-            {schedules.length === 0 ? (
-              <div className={styles.empty}>등록된 수업 일정이 없습니다.</div>
-            ) : schedules.map(sc => {
-              const cfg = TYPE_CONFIG[sc.schedule_type as keyof typeof TYPE_CONFIG] ?? { label: sc.schedule_type, icon: '📌' }
-              const isOnline = sc.schedule_type === 'online'
-              const isEditingLink = editingLinkId === sc.id
-
-              return (
-                <div key={sc.id} className={styles.scheduleCard}>
-                  <div className={styles.scTop}>
-                    <span className={`${styles.typeBadge} ${isOnline ? styles.badgeOnline : styles.badgeDefault}`}>
-                      {cfg.icon} {cfg.label}
-                    </span>
-                    {sc.target_class && (
-                      <span className={styles.classBadge}>
-                        {sc.target_class.cohort ? `${sc.target_class.cohort}기 ` : ''}{sc.target_class.name}
-                      </span>
-                    )}
-                    <button className={styles.deleteBtn} onClick={() => handleDeleteSchedule(sc.id)}>삭제</button>
-                  </div>
-
-                  <div className={styles.scTitle}>{sc.title}</div>
-                  <div className={styles.scMeta}>
-                    <span>🗓 {sc.schedule_date.substring(0, 10)}</span>
-                    <span>⏰ {sc.start_time.substring(0, 5)} ~ {sc.end_time.substring(0, 5)}</span>
-                  </div>
-
-                  {/* 온라인: 링크 영역 */}
-                  {isOnline && (
-                    <div className={styles.linkArea}>
-                      {isEditingLink ? (
-                        <div className={styles.linkEditRow}>
-                          <input
-                            type="url"
-                            className={styles.input}
-                            placeholder="https://zoom.us/j/..."
-                            value={editingLink}
-                            onChange={e => setEditingLink(e.target.value)}
-                            autoFocus
-                          />
-                          <button className={styles.saveLinkBtn} onClick={() => handleSaveScheduleLink(sc.id)} disabled={savingLink}>
-                            {savingLink ? '…' : '저장'}
-                          </button>
-                          <button className={styles.cancelLinkBtn} onClick={() => setEditingLinkId(null)}>취소</button>
-                        </div>
-                      ) : sc.location ? (
-                        <div className={styles.linkDisplay}>
-                          <a href={sc.location} target="_blank" rel="noreferrer" className={styles.linkAnchor}>🔗 수업 링크 열기</a>
-                          <button className={styles.editLinkBtn} onClick={() => { setEditingLinkId(sc.id); setEditingLink(sc.location || '') }}>수정</button>
-                        </div>
-                      ) : (
-                        <div className={styles.linkDisplay}>
-                          <span className={styles.noLink}>링크 미등록</span>
-                          <button className={styles.editLinkBtn} onClick={() => { setEditingLinkId(sc.id); setEditingLink('') }}>링크 추가</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 오프라인: 장소 */}
-                  {!isOnline && sc.location && (
-                    <div className={styles.scLocation}>📍 {sc.location}</div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
+            {pastList.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  className={styles.pastToggle}
+                  onClick={() => setShowPast(v => !v)}
+                >
+                  <span className={styles.pastToggleChevron}>{showPast ? '▾' : '▸'}</span>
+                  지난 일정 {pastList.length}건 {showPast ? '접기' : '펼쳐보기'}
+                </button>
+                {showPast && pastList.map(sc => renderCard(sc, true))}
+              </>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

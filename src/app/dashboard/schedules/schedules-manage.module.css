@@ -19,6 +19,38 @@
   letter-spacing: -0.02em;
 }
 
+/* 제목 + "새로운 일정 등록" 토글 버튼 */
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.pageHeader .title { margin-bottom: 0; }
+
+.newBtn {
+  padding: 11px 20px;
+  border: none;
+  border-radius: var(--radius-md, 14px);
+  background: var(--primary-gradient, linear-gradient(135deg, #00A99D 0%, #00C4B4 100%));
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,169,157,0.2);
+  transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.newBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,169,157,0.3); }
+.newBtnActive {
+  background: #718096;
+  box-shadow: none;
+}
+.newBtnActive:hover { background: #4A5568; transform: none; box-shadow: none; }
+
 .layout {
   display: flex;
   gap: 24px;
@@ -106,6 +138,53 @@
 .row { display: flex; gap: 10px; align-items: center; }
 .row > .input, .row > .select { flex: 1; }
 
+/* ── 조회 필터 (기수 / 반 / 담당 선생님) ── */
+.filterBar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filterField { flex: 1; min-width: 150px; }
+
+.filterLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-mid, #5A6B7D);
+  margin-bottom: 6px;
+}
+
+.filterField .select { padding: 9px 12px; font-size: 13px; }
+
+.filterResetBtn {
+  padding: 9px 16px;
+  border: 1.5px solid #E2E8F0;
+  border-radius: var(--radius-md, 14px);
+  background: white;
+  color: var(--text-mid, #5A6B7D);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+}
+.filterResetBtn:hover { border-color: #E53E3E; color: #E53E3E; }
+
+.filterSummary {
+  margin-top: 12px;
+  padding: 9px 14px;
+  border-radius: var(--radius-md, 14px);
+  background: var(--primary-light, #E6F7F6);
+  color: var(--primary-dark, #008F84);
+  font-size: 12px;
+  font-weight: 600;
+}
+.filterSummary strong { font-weight: 800; }
+
 .timeSep { color: var(--text-mid); font-weight: 600; flex-shrink: 0; }
 
 .submitBtn {
@@ -125,25 +204,6 @@
 }
 .submitBtn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,169,157,0.3); }
 .submitBtn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
-
-/* ── 선생님 가용시간 ── */
-.availBox {
-  background: var(--bg-color, #F0F8F7);
-  border: 1px solid var(--primary-light, #E6F7F6);
-  border-radius: var(--radius-sm, 10px);
-  padding: 12px;
-  max-height: 200px;
-  overflow-y: auto;
-  font-size: 13px;
-}
-.availItem {
-  display: flex;
-  justify-content: space-between;
-  padding: 7px 0;
-  border-bottom: 1px dashed #D5EAE8;
-  color: var(--text-dark, #253243);
-}
-.availItem:last-child { border-bottom: none; }
 
 /* ─────────────────────────────────────────
    월간 캘린더

@@ -61,9 +61,33 @@
 }
 .sortDirBtn:hover { border-color: #00A99D; color: #00A99D; }
 
+/* 상세 패널 최상단 — 전체 목록으로 돌아가기 */
+.backToListBtn {
+  align-self: flex-start; padding: 9px 18px; border: 1.5px solid #00A99D; border-radius: 999px;
+  background: #E6F7F6; color: #00897B; font-size: 13px; font-weight: 800; font-family: inherit;
+  cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s;
+}
+.backToListBtn:hover { background: #00A99D; color: white; }
+
 .studentItem { padding: 14px 16px; border-bottom: 1px solid #edf2f7; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .studentItem:hover { background: #f0fdf4; }
 .studentItemActive { background: #dcfce7; border-left: 4px solid #16a34a; padding-left: 12px; }
+
+/* ── 학생 미선택 시: 목록이 전체 폭을 채우는 카드 그리드 ── */
+.studentListFull { width: 100%; min-width: 0; }
+.studentListFull .listHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.studentListFull .listHeaderTitle { font-size: 14px; }
+.studentListFull .sortControls { margin-top: 0; }
+.studentListFull .sortSelect { flex: none; }
+
+.studentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+.studentGrid .studentItem { border: 1px solid #e2e8f0; border-radius: 12px; align-items: flex-start; }
+.studentGrid .studentItem:hover { background: #f0fdf4; border-color: #16a34a; }
 .studentItemMain { flex: 1; min-width: 0; }
 .studentName { font-weight: 700; font-size: 15px; color: #2d3748; }
 .studentTags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }

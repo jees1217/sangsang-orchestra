@@ -21,9 +21,7 @@ const MENUS = {
   teacher: [
     { label: '수업 관리', path: '/dashboard/teacher/management', icon: '📚' },
     { label: '출결/평가 관리', path: '/dashboard/evaluations', icon: '✔️' },
-    { label: '출석 대체 현황', path: '/dashboard/substitutions', icon: '🙋' },
     { label: '과제/공지 관리', path: '/dashboard/notices', icon: '📋' },
-    { label: '문의게시판', path: '/dashboard/inquiries', icon: '💬' },
   ],
   director: [
     { label: '단원 명부', path: '/dashboard/members', icon: '🧑‍🤝‍🧑' },

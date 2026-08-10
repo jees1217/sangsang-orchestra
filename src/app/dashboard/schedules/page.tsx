@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { CLASS_TEACHER_ROLES } from '@/lib/roles'
 import styles from './schedules-manage.module.css'
 
-const DAYS = ['일', '월', '화', '수', '목', '금', '토']
 const WEEK_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; colorClass: string }> = {
@@ -25,7 +24,6 @@ export default function ScheduleManagementPage() {
 
   const [schedules, setSchedules] = useState<any[]>([])
   const [teachers, setTeachers] = useState<any[]>([])
-  const [availabilities, setAvailabilities] = useState<any[]>([])
   const [allClasses, setAllClasses] = useState<any[]>([])
   const [allStudents, setAllStudents] = useState<any[]>([])
 
@@ -46,12 +44,19 @@ export default function ScheduleManagementPage() {
   const [isTitleManual, setIsTitleManual] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
+  // 등록 폼은 "새로운 일정 등록" 버튼을 눌렀을 때만 노출 — 기본 화면은 캘린더·목록이 전체 폭
+  const [showForm, setShowForm] = useState(false)
 
   // 캘린더 상태
   const [calYear, setCalYear] = useState(new Date().getFullYear())
   const [calMonth, setCalMonth] = useState(new Date().getMonth()) // 0-based
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'time' | 'title'>('time')
+
+  // 목록·캘린더 공통 조회 필터 (폼의 filterCohort와는 별개 — 이쪽은 "무엇을 볼지")
+  const [viewCohort, setViewCohort] = useState<string>('')
+  const [viewClassId, setViewClassId] = useState<string>('')
+  const [viewTeacherId, setViewTeacherId] = useState<string>('')
 
   const supabase = createClient()
 
@@ -66,19 +71,15 @@ export default function ScheduleManagementPage() {
       const { data: me } = await supabase.from('users').select('role').eq('id', user.id).single()
       setUserRole(me?.role || '')
 
-      const [{ data: tData }, { data: cData }, { data: sData }, { data: availData }] = await Promise.all([
+      const [{ data: tData }, { data: cData }, { data: sData }] = await Promise.all([
         supabase.from('users').select('id, name').in('role', [...CLASS_TEACHER_ROLES]).order('name'),
         supabase.from('classes').select('id, name, cohort, teacher_ids'),
         supabase.from('users').select('id, name, cohort').eq('role', 'student').order('name'),
-        supabase.from('teacher_availabilities')
-          .select('*, teacher:teacher_id(name)')
-          .order('day_of_week').order('start_time'),
       ])
 
       setTeachers(tData || [])
       setAllClasses(cData || [])
       setAllStudents(sData || [])
-      setAvailabilities(availData || [])
       await fetchSchedules()
     } catch (error) {
       console.error('로딩 실패:', error)
@@ -139,6 +140,7 @@ export default function ScheduleManagementPage() {
         alert('일정이 성공적으로 등록되었습니다.')
       }
       setTitle(''); setIsTitleManual(false); setLocation('')
+      setShowForm(false)
       await fetchSchedules()
       const [y, m] = scheduleDate.split('-').map(Number)
       setCalYear(y); setCalMonth(m - 1)
@@ -165,6 +167,8 @@ export default function ScheduleManagementPage() {
     if (sc.target_type === 'individual') setTargetUserId(sc.target_user_id || '')
     setIsTitleManual(true)
     setTitle(sc.title)
+    // 수정은 폼에서 이뤄지므로 접혀 있으면 함께 펼친다
+    setShowForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -175,6 +179,9 @@ export default function ScheduleManagementPage() {
     setTeacherId(''); setTargetType('all'); setTargetCohorts([4]); setTargetClassId(''); setTargetUserId('')
   }
 
+  // 폼 안의 "취소" 버튼: 편집 상태를 비우고 폼도 닫는다
+  const handleCloseForm = () => { handleCancelEdit(); setShowForm(false) }
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('이 일정을 취소/삭제하시겠습니까?')) return
     await supabase.from('schedules').delete().eq('id', id)
@@ -182,29 +189,51 @@ export default function ScheduleManagementPage() {
     await fetchSchedules()
   }
 
+  // 기수/반/선생님 필터. 캘린더와 목록이 같은 결과를 보도록 한 번만 걸러 둔다.
+  // 전체 단원(all) 대상 일정은 해당 기수도 실제로 참여하므로 기수 필터에 함께 포함한다.
+  const filteredSchedules = useMemo(() => {
+    const cohortNum = viewCohort ? Number(viewCohort) : null
+    return schedules.filter(sc => {
+      if (cohortNum !== null) {
+        const hit =
+          sc.target_type === 'all' ||
+          (sc.target_type === 'cohort' && (sc.target_cohort || []).includes(cohortNum)) ||
+          (sc.target_type === 'class' && sc.target_class?.cohort === cohortNum) ||
+          (sc.target_type === 'individual' && sc.target_user?.cohort === cohortNum)
+        if (!hit) return false
+      }
+      if (viewClassId && sc.target_class_id !== viewClassId) return false
+      if (viewTeacherId && sc.teacher_id !== viewTeacherId) return false
+      return true
+    })
+  }, [schedules, viewCohort, viewClassId, viewTeacherId])
+
+  const hasActiveFilter = !!(viewCohort || viewClassId || viewTeacherId)
+  const resetFilters = () => { setViewCohort(''); setViewClassId(''); setViewTeacherId('') }
+
   // 날짜별 일정 맵 (캘린더 렌더링용)
   const scheduleMap = useMemo(() => {
     const map: Record<string, any[]> = {}
-    schedules.forEach(sc => {
+    filteredSchedules.forEach(sc => {
       // schedule_date가 '2025-06-01' 또는 '2025-06-01T...' 모두 대응
       const dateKey = sc.schedule_date.substring(0, 10)
       if (!map[dateKey]) map[dateKey] = []
       map[dateKey].push(sc)
     })
     return map
-  }, [schedules])
+  }, [filteredSchedules])
 
   // 선택된 날짜의 일정
   const selectedSchedules = selectedDate ? (scheduleMap[selectedDate] || []) : []
 
   // 정렬 기준 적용 (시간순: 날짜/시간 오름차순, 이름순: 제목 가나다순)
   const sortedSchedules = useMemo(() => {
-    const list = selectedDate ? selectedSchedules : schedules
+    const list = selectedDate ? selectedSchedules : filteredSchedules
     if (sortBy === 'title') {
       return [...list].sort((a, b) => a.title.localeCompare(b.title, 'ko'))
     }
     return list
-  }, [selectedDate, selectedSchedules, schedules, sortBy])
+  }, [selectedDate, selectedSchedules, filteredSchedules, sortBy])
 
   // 이번 달 캘린더 날짜 계산
   const calendarDays = useMemo(() => {
@@ -277,7 +306,18 @@ export default function ScheduleManagementPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>📅 통합 일정{isAdmin ? ' 관리' : ''}</h1>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.title}>📅 통합 일정{isAdmin ? ' 관리' : ''}</h1>
+        {isAdmin && (
+          <button
+            type="button"
+            className={`${styles.newBtn} ${showForm ? styles.newBtnActive : ''}`}
+            onClick={() => (showForm ? handleCloseForm() : setShowForm(true))}
+          >
+            {showForm ? '✕ 작성 닫기' : '✏️ 새로운 일정 등록'}
+          </button>
+        )}
+      </div>
 
       {fetchError && (
         <div style={{
@@ -292,8 +332,8 @@ export default function ScheduleManagementPage() {
       )}
 
       <div className={styles.layout}>
-        {/* ──────── 왼쪽: 폼 (관리자 전용) ──────── */}
-        {isAdmin && (
+        {/* ──────── 왼쪽: 폼 (관리자 전용 · 버튼을 눌렀을 때만) ──────── */}
+        {isAdmin && showForm && (
         <div className={styles.leftPanel}>
           <div className={styles.card}>
             <h2 className={styles.cardTitle}>
@@ -414,34 +454,63 @@ export default function ScheduleManagementPage() {
               <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
                 {isSubmitting ? (editingId ? '수정 중...' : '등록 중...') : editingId ? '✅ 수정 완료' : '✅ 일정 확정 및 캘린더 등록'}
               </button>
-              {editingId && (
-                <button type="button" className={styles.cancelEditBtn} onClick={handleCancelEdit}>
-                  취소
-                </button>
-              )}
+              <button type="button" className={styles.cancelEditBtn} onClick={handleCloseForm}>
+                취소
+              </button>
             </form>
-          </div>
-
-          {/* 선생님 가용시간 참조 */}
-          <div className={styles.card}>
-            <h2 className={styles.cardTitle} style={{ fontSize: '15px' }}>📌 선생님 가용 시간 참조</h2>
-            <div className={styles.availBox}>
-              {availabilities.length === 0
-                ? <div style={{ color: 'var(--text-light)' }}>제출된 데이터가 없습니다.</div>
-                : availabilities.map(av => (
-                  <div key={av.id} className={styles.availItem}>
-                    <span style={{ fontWeight: 700 }}>{av.teacher?.name}</span>
-                    <span>{DAYS[av.day_of_week]}요일 {av.start_time.substring(0,5)}~{av.end_time.substring(0,5)}</span>
-                  </div>
-                ))
-              }
-            </div>
           </div>
         </div>
         )}
 
         {/* ──────── 오른쪽: 캘린더 + 일정 상세 ──────── */}
-        <div className={styles.rightPanel} style={!isAdmin ? { width: '100%' } : undefined}>
+        <div className={styles.rightPanel} style={!(isAdmin && showForm) ? { width: '100%' } : undefined}>
+          {/* 조회 필터 — 캘린더와 아래 목록에 함께 적용된다 */}
+          <div className={styles.card}>
+            <div className={styles.filterBar}>
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>기수</label>
+                <select
+                  className={styles.select}
+                  value={viewCohort}
+                  onChange={e => { setViewCohort(e.target.value); setViewClassId('') }}
+                >
+                  <option value="">전체 기수</option>
+                  {[1, 2, 3, 4].map(n => <option key={n} value={n}>{n}기</option>)}
+                </select>
+              </div>
+
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>반</label>
+                <select className={styles.select} value={viewClassId} onChange={e => setViewClassId(e.target.value)}>
+                  <option value="">전체 반</option>
+                  {allClasses
+                    .filter(c => !viewCohort || c.cohort === Number(viewCohort))
+                    .map(c => <option key={c.id} value={c.id}>{c.cohort}기 {c.name}</option>)}
+                </select>
+              </div>
+
+              <div className={styles.filterField}>
+                <label className={styles.filterLabel}>담당 선생님</label>
+                <select className={styles.select} value={viewTeacherId} onChange={e => setViewTeacherId(e.target.value)}>
+                  <option value="">전체 선생님</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name} 선생님</option>)}
+                </select>
+              </div>
+
+              {hasActiveFilter && (
+                <button type="button" className={styles.filterResetBtn} onClick={resetFilters}>
+                  ✕ 필터 해제
+                </button>
+              )}
+            </div>
+
+            {hasActiveFilter && (
+              <div className={styles.filterSummary}>
+                필터 적용 중 — 전체 {schedules.length}건 중 <strong>{filteredSchedules.length}건</strong> 표시 (캘린더에도 함께 적용됩니다)
+              </div>
+            )}
+          </div>
+
           <div className={styles.card}>
             {/* 캘린더 헤더 */}
             <div className={styles.calHeader}>
@@ -503,7 +572,7 @@ export default function ScheduleManagementPage() {
             <h2 className={styles.cardTitle}>
               {selectedDate
                 ? `📋 ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })} 일정 (${selectedSchedules.length}건)`
-                : `🗓 오케스트라 확정 일정 전체 (${schedules.length}건)`
+                : `🗓 오케스트라 확정 일정 ${hasActiveFilter ? '' : '전체 '}(${filteredSchedules.length}건)`
               }
               {selectedDate && (
                 <button className={styles.clearBtn} onClick={() => setSelectedDate(null)}>전체 보기</button>
@@ -518,7 +587,11 @@ export default function ScheduleManagementPage() {
             </div>
 
             {sortedSchedules.length === 0
-              ? <div className={styles.empty}>{selectedDate ? '이 날에 등록된 일정이 없습니다.' : '등록된 일정이 없습니다.'}</div>
+              ? <div className={styles.empty}>
+                  {hasActiveFilter
+                    ? '조건에 맞는 일정이 없습니다.'
+                    : selectedDate ? '이 날에 등록된 일정이 없습니다.' : '등록된 일정이 없습니다.'}
+                </div>
               : sortedSchedules.map(sc => (
                 <div key={sc.id} className={styles.scheduleCard}>
                   <div className={styles.scHeader}>

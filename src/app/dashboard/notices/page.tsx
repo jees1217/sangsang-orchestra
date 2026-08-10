@@ -34,6 +34,8 @@ export default function NoticesPage() {
   const [adminSubType, setAdminSubType] = useState<SubType>('all')
   const [dueDate, setDueDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // 작성 폼은 "새로운 내용 작성" 버튼을 눌렀을 때만 노출 — 기본 화면은 목록이 전체 폭을 차지
+  const [showForm, setShowForm] = useState(false)
 
   // 기 작성된 공지/과제 수정 (제목·내용·마감일만 — 수신 대상은 변경 불가)
   const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null)
@@ -41,6 +43,9 @@ export default function NoticesPage() {
   const [editContent, setEditContent] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+
+  // 공지/과제 내용 접기·펼치기 — 기본은 접힌 상태(제목만), 카드별로 또는 전체 일괄 전환
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const supabase = createClient()
 
@@ -174,6 +179,7 @@ export default function NoticesPage() {
       if (error) throw error
       alert('성공적으로 등록되었습니다.')
       resetForm()
+      setShowForm(false)
       await fetchNotices(userRole, currentUser.id)
     } catch (error) {
       console.error('등록 실패:', error)
@@ -253,6 +259,17 @@ export default function NoticesPage() {
     }
   }
 
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const allExpanded = notices.length > 0 && notices.every(n => expandedIds.has(n.id))
+  const toggleExpandAll = () => setExpandedIds(allExpanded ? new Set() : new Set(notices.map(n => n.id)))
+
   if (loading) return <div className={styles.loading}>페이지를 불러오는 중입니다...</div>
 
   const isManagement = userRole === 'admin' || userRole === 'director'
@@ -263,32 +280,45 @@ export default function NoticesPage() {
   if (isReadOnlyViewer) {
     return (
       <div className={styles.container}>
-        <h1 className={styles.title}>공지사항</h1>
+        <div className={styles.pageHeader}>
+          <h1 className={styles.title}>공지사항</h1>
+          {notices.length > 0 && (
+            <button type="button" className={styles.expandAllBtn} onClick={toggleExpandAll}>
+              {allExpanded ? '전체 접기' : '전체 펼치기'}
+            </button>
+          )}
+        </div>
         {notices.length === 0 ? (
           <div className={styles.empty}>등록된 공지나 과제가 없습니다.</div>
         ) : (
-          notices.map(notice => (
-            <div key={notice.id} className={styles.noticeCard}>
-              <div className={styles.cardHeader}>
-                <div>
-                  <span className={`${styles.badge} ${notice.type === 'notice' ? styles.badgeNotice : styles.badgeAssignment}`}>
-                    {notice.type === 'notice' ? '공지' : '과제'}
-                  </span>
+          notices.map(notice => {
+            const expanded = expandedIds.has(notice.id)
+            return (
+              <div key={notice.id} className={styles.noticeCard}>
+                <div className={styles.cardHeader}>
+                  <div>
+                    <span className={`${styles.badge} ${notice.type === 'notice' ? styles.badgeNotice : styles.badgeAssignment}`}>
+                      {notice.type === 'notice' ? '공지' : '과제'}
+                    </span>
+                  </div>
+                  {notice.due_date && (
+                    <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
+                      마감: {new Date(notice.due_date).toLocaleDateString()}
+                    </span>
+                  )}
                 </div>
-                {notice.due_date && (
-                  <span style={{ fontSize: '12px', color: '#e53e3e', fontWeight: 'bold' }}>
-                    마감: {new Date(notice.due_date).toLocaleDateString()}
-                  </span>
-                )}
+                <button type="button" className={styles.cardTitleRow} onClick={() => toggleExpanded(notice.id)}>
+                  <span className={styles.expandChevron}>{expanded ? '▾' : '▸'}</span>
+                  <h3 className={styles.cardTitle}>{notice.title}</h3>
+                </button>
+                {expanded && <div className={styles.cardContent}>{notice.content}</div>}
+                <div className={styles.cardFooter}>
+                  <span>작성자: {userMap[notice.writer_id] || '알 수 없음'}</span>
+                  <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
+                </div>
               </div>
-              <h3 className={styles.cardTitle}>{notice.title}</h3>
-              <div className={styles.cardContent}>{notice.content}</div>
-              <div className={styles.cardFooter}>
-                <span>작성자: {userMap[notice.writer_id] || '알 수 없음'}</span>
-                <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     )
@@ -296,10 +326,20 @@ export default function NoticesPage() {
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>과제 및 공지 관리</h1>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.title}>과제 및 공지 관리</h1>
+        <button
+          type="button"
+          className={`${styles.newBtn} ${showForm ? styles.newBtnActive : ''}`}
+          onClick={() => setShowForm(v => !v)}
+        >
+          {showForm ? '✕ 작성 닫기' : '✏️ 새로운 내용 작성'}
+        </button>
+      </div>
 
       <div className={styles.layout}>
-        {/* 왼쪽: 작성 폼 */}
+        {/* 왼쪽: 작성 폼 (버튼을 눌렀을 때만) */}
+        {showForm && (
         <div className={styles.formSection}>
           <h2 className={styles.sectionTitle}>새로운 내용 작성</h2>
           <form onSubmit={handleSubmit}>
@@ -457,16 +497,26 @@ export default function NoticesPage() {
             </button>
           </form>
         </div>
+        )}
 
-        {/* 오른쪽: 발송 내역 */}
-        <div className={styles.listSection}>
-          <h2 className={styles.sectionTitle}>
-            {isManagement ? '전체 발송 내역' : '과제 및 공지 리스트'}
-          </h2>
+        {/* 오른쪽: 발송 내역 (작성 폼이 닫혀 있으면 전체 폭) */}
+        <div className={`${styles.listSection} ${showForm ? '' : styles.listSectionFull}`}>
+          <div className={styles.listSectionHeader}>
+            <h2 className={styles.sectionTitle} style={{ marginBottom: 0, paddingBottom: 0, border: 'none' }}>
+              {isManagement ? '전체 발송 내역' : '과제 및 공지 리스트'}
+            </h2>
+            {notices.length > 0 && (
+              <button type="button" className={styles.expandAllBtn} onClick={toggleExpandAll}>
+                {allExpanded ? '전체 접기' : '전체 펼치기'}
+              </button>
+            )}
+          </div>
           {notices.length === 0 ? (
             <div className={styles.empty}>작성된 과제나 공지가 없습니다.</div>
           ) : (
-            notices.map(notice => (
+            notices.map(notice => {
+              const expanded = expandedIds.has(notice.id) || editingNoticeId === notice.id
+              return (
               <div key={notice.id} className={styles.noticeCard}>
                 <div className={styles.cardHeader}>
                   <div>
@@ -529,8 +579,11 @@ export default function NoticesPage() {
                   </div>
                 ) : (
                   <>
-                    <h3 className={styles.cardTitle}>{notice.title}</h3>
-                    <div className={styles.cardContent}>{notice.content}</div>
+                    <button type="button" className={styles.cardTitleRow} onClick={() => toggleExpanded(notice.id)}>
+                      <span className={styles.expandChevron}>{expanded ? '▾' : '▸'}</span>
+                      <h3 className={styles.cardTitle}>{notice.title}</h3>
+                    </button>
+                    {expanded && <div className={styles.cardContent}>{notice.content}</div>}
                   </>
                 )}
 
@@ -539,7 +592,8 @@ export default function NoticesPage() {
                   <span>{new Date(notice.created_at).toLocaleString('ko-KR')}</span>
                 </div>
               </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>
