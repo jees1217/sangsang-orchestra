@@ -63,7 +63,7 @@ export default function EvaluationsPage() {
   const [editComment, setEditComment] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
-  const [tab, setTab] = useState<'byStudent' | 'session' | 'byTerm'>('byStudent')
+  const [tab, setTab] = useState<'byStudent' | 'session' | 'byCohort' | 'byTerm'>('byStudent')
   const [sessionSchedules, setSessionSchedules] = useState<any[]>([])
   const [selectedScheduleId, setSelectedScheduleId] = useState('')
   const [allStudentsForSession, setAllStudentsForSession] = useState<any[]>([])
@@ -84,7 +84,17 @@ export default function EvaluationsPage() {
   const [termInput, setTermInput] = useState('')
   const [endingTerm, setEndingTerm] = useState(false)
 
-  // 기수별 조회
+  // 기수 별 조회 (학생 단원 기수 1~4기 — 교육차수와는 별개 개념)
+  const [selectedReportCohort, setSelectedReportCohort] = useState<number | ''>('')
+  const [cohortReport, setCohortReport] = useState<{
+    id: string; name: string; cohort: number | null; instrument: string | null; className: string | null
+    present: number; late: number; absent: number; excused: number
+    convertedAbsent: number; effectiveAbsent: number; rate: number
+    evalCount: number; avgScore: number | null
+  }[]>([])
+  const [cohortReportLoading, setCohortReportLoading] = useState(false)
+
+  // 교육차수 별 조회 (연 단위 프로그램 회차 — attendance_terms)
   const [termOptions, setTermOptions] = useState<{ term: number; started_at: string | null; closed_at: string | null }[]>([])
   const [selectedReportTerm, setSelectedReportTerm] = useState<number | ''>('')
   const [termReport, setTermReport] = useState<{
@@ -141,6 +151,14 @@ export default function EvaluationsPage() {
   useEffect(() => { if (selectedStudent) loadDetail(selectedStudent.id) }, [selectedStudent])
   useEffect(() => { if (tab === 'session') fetchSessionSchedules() }, [tab])
   useEffect(() => { if (selectedScheduleId) loadSession(selectedScheduleId) }, [selectedScheduleId])
+  // 기본값 3기 (4기는 아직 없음). students 로딩 전에 tab이 먼저 열릴 수 있어 학생 목록이
+  // 준비된 뒤에 채운다 — 한 번 값이 채워지면(직접 바꾼 경우 포함) 다시 덮어쓰지 않는다.
+  useEffect(() => {
+    if (tab === 'byCohort' && selectedReportCohort === '' && students.length > 0) {
+      setSelectedReportCohort(3)
+    }
+  }, [tab, students])
+  useEffect(() => { if (selectedReportCohort !== '') loadCohortReport(selectedReportCohort) }, [selectedReportCohort])
   useEffect(() => { if (tab === 'byTerm' && termOptions.length === 0) fetchTermOptions() }, [tab])
   useEffect(() => { if (selectedReportTerm !== '') loadTermReport(selectedReportTerm) }, [selectedReportTerm])
 
@@ -189,6 +207,47 @@ export default function EvaluationsPage() {
       alert('기수 마감 중 오류가 발생했습니다.')
     } finally {
       setEndingTerm(false)
+    }
+  }
+
+  // 학생 기수(1~4기)로 필터링한 조회. students[].stats는 fetchInitialData에서 이미
+  // 진행 중인 교육차수(termWindow) 구간으로 정확히 집계돼 있으므로 재조회하지 않고
+  // 그대로 재사용하고, 여기서는 평가 점수만 같은 구간으로 따로 조회해 합친다.
+  const loadCohortReport = async (cohort: number) => {
+    setCohortReportLoading(true)
+    try {
+      const cohortStudents = students.filter(s => s.cohort === cohort)
+      const ids = cohortStudents.map(s => s.id)
+      if (ids.length === 0) { setCohortReport([]); return }
+
+      let evalQuery = supabase.from('evaluations').select('student_id, score').in('student_id', ids)
+      if (termWindow?.started_at) evalQuery = evalQuery.gte('created_at', termWindow.started_at)
+      if (termWindow?.closed_at)  evalQuery = evalQuery.lte('created_at', termWindow.closed_at)
+      const { data: evalData } = await evalQuery
+
+      const evalMap: Record<string, { sum: number; count: number }> = {}
+      ;(evalData || []).forEach((e: any) => {
+        if (e.score == null) return
+        if (!evalMap[e.student_id]) evalMap[e.student_id] = { sum: 0, count: 0 }
+        evalMap[e.student_id].sum += e.score
+        evalMap[e.student_id].count++
+      })
+
+      const report = cohortStudents.map(s => {
+        const ev = evalMap[s.id]
+        return {
+          id: s.id, name: s.name, cohort: s.cohort, instrument: s.instrument, className: s.classes?.name ?? null,
+          present: s.stats.present, late: s.stats.late, absent: s.stats.absent, excused: s.stats.excused,
+          convertedAbsent: s.stats.convertedAbsent, effectiveAbsent: s.stats.effectiveAbsent, rate: s.stats.rate,
+          evalCount: ev?.count ?? 0,
+          avgScore: ev && ev.count > 0 ? Math.round((ev.sum / ev.count) * 10) / 10 : null,
+        }
+      }).sort((a, b) => a.rate - b.rate)
+      setCohortReport(report)
+    } catch (error) {
+      console.error('기수별 출결/평가 조회 실패:', error)
+    } finally {
+      setCohortReportLoading(false)
     }
   }
 
@@ -685,19 +744,25 @@ export default function EvaluationsPage() {
             className={`${styles.tabBtn} ${tab === 'byStudent' ? styles.tabBtnActive : ''}`}
             onClick={() => setTab('byStudent')}
           >
-            학생별 조회
+            학생 별 조회
           </button>
           <button
             className={`${styles.tabBtn} ${tab === 'session' ? styles.tabBtnActive : ''}`}
             onClick={() => setTab('session')}
           >
-            🗓 수업별 출결·평가
+            🗓 수업 별 출결·평가
+          </button>
+          <button
+            className={`${styles.tabBtn} ${tab === 'byCohort' ? styles.tabBtnActive : ''}`}
+            onClick={() => setTab('byCohort')}
+          >
+            🎽 기수 별 조회
           </button>
           <button
             className={`${styles.tabBtn} ${tab === 'byTerm' ? styles.tabBtnActive : ''}`}
             onClick={() => setTab('byTerm')}
           >
-            📊 기수별 조회
+            📊 교육차수 별 조회
           </button>
         </div>
       )}
@@ -799,17 +864,90 @@ export default function EvaluationsPage() {
             </>
           )}
         </div>
-      ) : tab === 'byTerm' && canWrite ? (
+      ) : tab === 'byCohort' && canWrite ? (
         <div className={styles.card}>
           <div className={styles.rosterHeader}>
             <h2 className={styles.sectionTitle} style={{ border: 'none', margin: 0, padding: 0 }}>기수 선택</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className={styles.sectionSub}>{termLabel} 출결 기준</span>
+              <select
+                className={styles.select}
+                style={{ width: 'auto', minWidth: 200 }}
+                value={selectedReportCohort}
+                onChange={e => setSelectedReportCohort(e.target.value ? Number(e.target.value) : '')}
+              >
+                <option value="">기수를 선택하세요</option>
+                {[1, 2, 3, 4].map(n => (
+                  <option key={n} value={n}>{n}기</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {selectedReportCohort === '' ? (
+            <div className={styles.empty}>조회할 기수를 선택해주세요.</div>
+          ) : cohortReportLoading ? (
+            <div className={styles.loading}>불러오는 중...</div>
+          ) : cohortReport.length === 0 ? (
+            <div className={styles.empty}>해당 기수에 학생이 없습니다.</div>
+          ) : (
+            <table className={styles.termTable}>
+              <thead>
+                <tr>
+                  <th>이름</th>
+                  <th>반</th>
+                  <th>출석</th>
+                  <th>지각</th>
+                  <th>인정</th>
+                  <th>결석<span className={styles.sectionSub} style={{ marginLeft: 4 }}>(환산 포함)</span></th>
+                  <th>출석률</th>
+                  <th>평가 건수</th>
+                  <th>평균 점수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cohortReport.map(r => {
+                  const rateColor = rateColorByAbsence(r.effectiveAbsent)
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.name}</td>
+                      <td>{r.className || '-'}</td>
+                      <td>{r.present}</td>
+                      <td>{r.late}</td>
+                      <td style={r.excused > 0 ? { color: '#2563eb', fontWeight: 700 } : undefined}>
+                        {r.excused > 0 ? `-${r.excused}` : '-'}
+                      </td>
+                      <td title={absenceBreakdown(r) ?? undefined}>
+                        {r.effectiveAbsent}
+                        {(r.convertedAbsent > 0 || r.excused > 0) && (
+                          <span className={styles.sectionSub} style={{ marginLeft: 4 }}>
+                            (기록 {r.absent + r.excused}
+                            {r.excused > 0 && ` − 인정 ${r.excused}`}
+                            {r.convertedAbsent > 0 && ` + 지각환산 ${r.convertedAbsent}`})
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ color: rateColor, fontWeight: 700 }}>{r.rate}%</td>
+                      <td>{r.evalCount}건</td>
+                      <td>{r.avgScore !== null ? `${r.avgScore}점` : '-'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : tab === 'byTerm' && canWrite ? (
+        <div className={styles.card}>
+          <div className={styles.rosterHeader}>
+            <h2 className={styles.sectionTitle} style={{ border: 'none', margin: 0, padding: 0 }}>교육차수 선택</h2>
             <select
               className={styles.select}
               style={{ width: 'auto', minWidth: 240 }}
               value={selectedReportTerm}
               onChange={e => setSelectedReportTerm(e.target.value ? Number(e.target.value) : '')}
             >
-              <option value="">기수를 선택하세요</option>
+              <option value="">교육차수를 선택하세요</option>
               {termOptions.map(t => (
                 <option key={t.term} value={t.term}>
                   {t.term}기 {t.closed_at ? `(마감: ${new Date(t.closed_at).toLocaleDateString('ko-KR')})` : '(진행 중)'}
@@ -819,9 +957,9 @@ export default function EvaluationsPage() {
           </div>
 
           {termOptions.length === 0 ? (
-            <div className={styles.empty}>아직 설정된 기수차가 없습니다. 관리자가 출결/평가 관리에서 기수차를 먼저 설정해주세요.</div>
+            <div className={styles.empty}>아직 설정된 교육차수가 없습니다. 관리자가 출결/평가 관리에서 기수차를 먼저 설정해주세요.</div>
           ) : selectedReportTerm === '' ? (
-            <div className={styles.empty}>조회할 기수를 선택해주세요.</div>
+            <div className={styles.empty}>조회할 교육차수를 선택해주세요.</div>
           ) : termReportLoading ? (
             <div className={styles.loading}>불러오는 중...</div>
           ) : termReport.length === 0 ? (
