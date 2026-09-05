@@ -83,6 +83,7 @@ export default function EvaluationsPage() {
   const [termWindow, setTermWindow] = useState<TermWindow>(null)
   const [termInput, setTermInput] = useState('')
   const [endingTerm, setEndingTerm] = useState(false)
+  const [showEndTermConfirm, setShowEndTermConfirm] = useState(false)
 
   // 기수 별 조회 (학생 단원 기수 1~4기 — 교육차수와는 별개 개념)
   const [selectedReportCohort, setSelectedReportCohort] = useState<number | ''>('')
@@ -178,13 +179,17 @@ export default function EvaluationsPage() {
     }
   }
 
-  const handleEndTerm = async () => {
+  // 저장 버튼으로 착각해 누르는 사고가 있어 브라우저 기본 confirm() 대신
+  // 화면 안 모달로 안내문구 + 확인/취소 버튼을 보여준다. 실제 종료 처리는
+  // 모달의 '확인' 클릭(runEndTerm)에서만 실행된다.
+  const handleEndTerm = () => {
     if (currentTerm === null) return
-    if (!window.confirm(
-      `${currentTerm}기 출결을 지금 시점으로 마감하고 ${currentTerm + 1}기 출결을 새로 시작합니다.\n` +
-      `마감된 ${currentTerm}기의 출결 값은 이후 최종값으로 고정됩니다. 계속할까요?`
-    )) return
+    setShowEndTermConfirm(true)
+  }
 
+  const runEndTerm = async () => {
+    if (currentTerm === null) return
+    setShowEndTermConfirm(false)
     setEndingTerm(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -1275,6 +1280,25 @@ export default function EvaluationsPage() {
         </div>
         )}
       </div>
+      )}
+
+      {showEndTermConfirm && currentTerm !== null && (
+        <div className={styles.modalOverlay} onClick={() => setShowEndTermConfirm(false)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <h2 className={styles.modalTitle}>⚠️ 출결 체크 종료</h2>
+            <p className={styles.modalMessage}>
+              현재 <strong>{currentTerm}기</strong> 교육차수를 지금 시점으로 종료하고,<br />
+              <strong>{currentTerm + 1}기</strong> 출결/평가 집계를 새로 시작하시겠습니까?
+            </p>
+            <p className={styles.modalWarning}>
+              종료된 {currentTerm}기의 출결 값은 이후 최종값으로 고정되며, 되돌리려면 관리자에게 별도 복구를 요청해야 합니다.
+            </p>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.secondaryBtn} onClick={() => setShowEndTermConfirm(false)}>취소</button>
+              <button type="button" className={styles.dangerBtn} onClick={runEndTerm}>확인, 종료합니다</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
