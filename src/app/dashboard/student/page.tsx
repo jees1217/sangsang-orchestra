@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { CollapsibleList } from '@/components/CollapsibleList'
 import styles from './student.module.css'
+import {
+  computeAttendanceStats, absenceBreakdown, scopeToTerm, fetchAllPages, PAGE_SIZE,
+} from '@/lib/attendance'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   PRESENT: { label: '출석', color: '#16a34a', bg: '#dcfce7' },
@@ -84,18 +87,14 @@ export default async function StudentDashboard() {
     return false
   }
 
-  let attendanceQuery = supabase
-    .from('attendances')
-    .select('id, date, status')
-    .eq('student_id', user.id)
-    .order('date', { ascending: false })
-  if (periodStartedAt) attendanceQuery = attendanceQuery.gte('date', periodStartedAt.split('T')[0])
+  const termWindow = openTerm ? { term: openTerm.term, started_at: periodStartedAt, closed_at: null } : null
 
   const [
     { data: rawSchedules },
     { data: rawAssignments },
     { data: rawNotices },
-    { data: rawAttendances },
+    rawAttendances,
+    subRows,
   ] = await Promise.all([
     supabase
       .from('schedules')
@@ -115,19 +114,44 @@ export default async function StudentDashboard() {
       .eq('type', 'notice')
       .order('created_at', { ascending: false })
       .limit(20),
-    attendanceQuery,
+    fetchAllPages(from => scopeToTerm(supabase
+      .from('attendances')
+      .select('id, date, status, schedule_id')
+      .eq('student_id', user.id), termWindow)
+      .order('id').range(from, from + PAGE_SIZE - 1)),
+    // 출석 대체 승인(인정결석)된 일정 — 결석/출석률 모수에서 제외한다.
+    fetchAllPages(from => supabase
+      .from('attendance_substitutions')
+      .select('schedule_id')
+      .eq('student_id', user.id)
+      .eq('status', 'approved')
+      .order('id').range(from, from + PAGE_SIZE - 1)),
   ])
 
   const upcomingSchedules = (rawSchedules || []).filter(isForMe).slice(0, 20)
   const myAssignments     = (rawAssignments || []).filter(isForMe).slice(0, 20)
   const myNotices         = (rawNotices || []).filter(isForMe).slice(0, 20)
 
-  const attendances = rawAttendances || []
-  const presentCount = attendances.filter((a: any) => a.status === 'PRESENT').length
-  const lateCount    = attendances.filter((a: any) => a.status === 'LATE').length
-  const absentCount  = attendances.filter((a: any) => a.status === 'ABSENT').length
-  const attendanceTotal = presentCount + lateCount + absentCount
-  const attendanceRate  = attendanceTotal > 0 ? Math.round(((presentCount + lateCount) / attendanceTotal) * 100) : null
+  // 최근 기록 목록은 날짜 내림차순 (페이지 커서는 id 순이라 여기서 다시 정렬)
+  const attendances = [...rawAttendances].sort((a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+  const excusedScheduleIds = new Set(subRows.map((s: any) => s.schedule_id))
+  const isExcused = (a: any) => a.status === 'ABSENT' && a.schedule_id != null && excusedScheduleIds.has(a.schedule_id)
+  const counts = { present: 0, late: 0, absent: 0, excused: 0 }
+  attendances.forEach((a: any) => {
+    if (a.status === 'PRESENT') counts.present++
+    else if (a.status === 'LATE') counts.late++
+    else if (a.status === 'ABSENT') {
+      if (isExcused(a)) counts.excused++
+      else counts.absent++
+    }
+  })
+  const stats = computeAttendanceStats(counts)
+  const presentCount = stats.present
+  const lateCount    = stats.late
+  const absentCount  = stats.effectiveAbsent
+  const attendanceTotal = attendances.length
+  const attendanceRate  = stats.present + stats.late + stats.absent > 0 ? stats.rate : null
+  const absenceTitle = absenceBreakdown(stats) ?? undefined
 
   // 작성자/선생님 이름 일괄 조회 (FK join 대신 별도 쿼리)
   const writerIds = [...new Set([
@@ -188,11 +212,19 @@ export default async function StudentDashboard() {
                 <span className={styles.statNum}>{lateCount}</span>
                 <span className={styles.statLabel}>지각</span>
               </div>
-              <div className={`${styles.statBox} ${styles.statAbsent}`}>
+              <div className={`${styles.statBox} ${styles.statAbsent}`} title={absenceTitle}>
                 <span className={styles.statNum}>{absentCount}</span>
                 <span className={styles.statLabel}>결석</span>
               </div>
+              {stats.excused > 0 && (
+                <div className={styles.statBox} style={{ background: '#e0f2fe', color: '#0369a1' }}
+                  title="출석 대체 승인으로 결석에서 차감된 횟수">
+                  <span className={styles.statNum}>{stats.excused}</span>
+                  <span className={styles.statLabel}>인정</span>
+                </div>
+              )}
             </div>
+            {absenceTitle && <div className={styles.statTotal}>{absenceTitle}</div>}
             <div className={styles.statTotal}>총 {attendanceTotal}건 기록</div>
 
             <div className={styles.sectionLabel}>최근 기록</div>
@@ -200,7 +232,9 @@ export default async function StudentDashboard() {
               listClassName={styles.attendanceLogList}
               toggleClassName={styles.moreLink}
               items={attendances.map((a: any) => {
-                const cfg = STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
+                const cfg = isExcused(a)
+                  ? { label: '결석(인정)', color: '#0369a1', bg: '#e0f2fe' }
+                  : STATUS_CONFIG[a.status] ?? STATUS_CONFIG.PRESENT
                 const dateLabel = new Date(a.date + 'T00:00:00').toLocaleDateString('ko-KR', {
                   month: 'numeric', day: 'numeric', weekday: 'short',
                 })
